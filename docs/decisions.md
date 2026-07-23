@@ -646,6 +646,152 @@ SDK (decision 9).
 
 ---
 
+## 26. sqlite-vec retained; backend tests run in a Linux container
+
+**Date:** 2026-07-23
+**Status:** accepted
+
+**Context:** `sqlite-vec` publishes wheels for macOS x86 and ARM, Linux x86 and aarch64, and
+Windows x64 — but **no `win_arm64`**. It runs on the Oracle VM and in CI, and cannot run natively
+on the dev machine. Checked at the same time: `chromadb` and `faiss-cpu` have the same gap.
+`numpy` and `onnxruntime` do ship ARM64 Windows wheels.
+
+This is the fourth ARM64 packaging trap on this project, after torch (8), the Flutter SDK (9) and
+`httptools` (25).
+
+**Decision:** Keep `sqlite-vec`, exactly as the plan specifies. The backend test suite runs inside
+a Linux container (`backend/test/`, `python:3.12-slim` on linux/arm64, matching the VM). Tests that
+need the extension use `pytest.importorskip`, so a native `pytest` run on Windows still executes
+the rest of the suite and skips those rather than erroring.
+
+**Rejected:**
+- *Storing embeddings as SQLite BLOBs with numpy cosine similarity.* Works identically on both
+  platforms with no native extension, and at ~60 chunks a brute-force scan is trivially fast — an
+  ANN index at this corpus size is arguably cargo-culting. Rejected on LJ's call: keeping the
+  plan's stated component matters more than the convenience.
+- *sqlite-vec in production with a numpy fallback locally.* Reintroduces the dev/production
+  divergence removed by decisions 23 and 25. A retrieval bug could appear in one and not the other.
+
+**Consequences:** The dev machine cannot run the full backend suite natively. Anything touching
+retrieval must be verified through `backend/test/run-tests.sh` before it is presented — the same
+discipline already applied to `infra/`. Dependencies are baked into the test image, including the
+embedding model, so the loop stays fast and does not re-download ~90 MB per run. The cost is a
+container build whenever `requirements.txt` changes.
+
+---
+
+## 27. Ingestion runs on the VM at deploy time
+
+**Date:** 2026-07-23
+**Status:** accepted
+
+**Context:** The vector store has to be built from the markdown corpus somewhere. Either it is
+built locally and the database shipped to the VM, or it is built on the VM as part of deployment.
+
+**Decision:** Ingestion runs on the VM at deploy time. `python -m app.ingest` rebuilds the index
+from `backend/data/*.md`.
+
+**Rejected:** Building locally and shipping the `.db`. Faster deploys, but the database becomes a
+binary artefact to move around and keep in sync, and the local and production stacks diverge again.
+
+**Consequences:** No extra dependency — the VM needs the embedding model regardless, because
+incoming queries must be embedded to search. Content updates become the same workflow as code
+changes: edit markdown, push, CI deploys, ingestion re-runs.
+
+Ingestion is a **full rebuild**, not incremental. At this corpus size the rebuild is cheap, and it
+makes stale chunks structurally impossible: deleting a section cannot leave an orphaned vector
+behind that the chatbot would go on citing. Incremental ingestion would earn its complexity at
+hundreds of documents, not at sixty chunks.
+
+---
+
+## 28. Embedding model: `thenlper/gte-small`, chosen by measurement
+
+**Date:** 2026-07-23
+**Status:** accepted — supersedes the plan's `all-MiniLM-L6-v2`
+
+**Context:** The plan (§2) specifies `sentence-transformers/all-MiniLM-L6-v2`. With it, four of the
+eight retrieval test cases failed: the correct chunk landed at rank 5 twice — losing to a FAQ entry
+by as little as 0.0075 — and at ranks 8 and 9 in the other two. Three chunks also exceeded the
+model's 256-token window, making part of their content invisible to retrieval entirely.
+
+**Decision:** Use `thenlper/gte-small`, and raise `TOP_K` from 4 to 6.
+
+Five candidates were evaluated against the real corpus and the real test queries
+(`backend/test/compare_models.py`):
+
+| Model | Dims | Max seq | Truncated | top-4 | top-6 | Embed |
+|---|---|---|---|---|---|---|
+| all-MiniLM-L6-v2 | 384 | 256 | 3/56 | 4/8 | 6/8 | 0.7s |
+| all-MiniLM-L12-v2 | 384 | **128** | **23/56** | 5/8 | 6/8 | 0.8s |
+| bge-small-en-v1.5 | 384 | 512 | 0 | 5/8 | 6/8 | 1.9s |
+| **gte-small** | **384** | **512** | **0** | **6/8** | **7/8** | 1.9s |
+| all-mpnet-base-v2 | 768 | 384 | 0 | 4/8 | 5/8 | 6.1s |
+
+**Rejected:**
+- *`all-mpnet-base-v2`* — the largest candidate and the **worst performer**, tied last at 4/8 while
+  being nine times slower and 768-dimensional. It ranked "certifications" at #17, a query every
+  other model placed in the top 4. Bigger was not better.
+- *`all-MiniLM-L12-v2`* — has a **128-token** limit, half of L6's despite being the deeper model,
+  and truncated 23 of 56 chunks. The intuitive "L12 beats L6" upgrade would have degraded
+  retrieval badly.
+- *`bge-small-en-v1.5`* — close behind gte-small, but requires an asymmetric query prefix
+  (`"Represent this sentence for searching relevant passages: "`) to perform. Extra complexity for
+  a worse score.
+
+**Consequences:** 384 dimensions, so the sqlite-vec schema is unchanged. Zero truncation at 512
+tokens. Embedding is ~1.9s for the corpus versus 0.7s — irrelevant, since ingestion runs once per
+deploy and a single query embed is milliseconds. `gte-small` is a third-party model rather than one
+published by the sentence-transformers project; it is widely used and pinned by name.
+
+**One failure no model fixed:** "What is he doing now?" missed on *all five*, ranking between #7
+and #23. That was a corpus problem, not a model problem — nothing in the AI Talent section anchored
+to "now". Fixed by rewriting the section to say so explicitly. Worth recording because the instinct
+was to reach for a better model, and a better model would not have helped.
+
+---
+
+## 29. Chunks are prefixed with the subject, not the document title
+
+**Date:** 2026-07-23
+**Status:** accepted
+
+**Context:** Sections are retrieved in isolation, so a chunk headed "Gruntify" needs to say whose
+project it was. The first implementation prepended the document title, giving
+`"Employment history — Gruntify\n\n..."`.
+
+That had an unintended effect. Every one of the twelve `faq.md` chunks then began
+`"Frequently asked questions — "`, which matches *any* question-shaped query regardless of topic.
+A FAQ entry ranked **first for 8 of 12** evaluation queries, crowding out the specific project and
+role chunks that actually answered them. "What is his security background?" returned three
+unrelated FAQ entries; "the most technically difficult thing he has built" returned "What else is
+he interested in?".
+
+**Decision:** Prefix with the **subject** — `"Ljuben Vassilev — {heading}"` — configured as
+`CORPUS_SUBJECT` and passed into the chunker, so `chunking.py` holds no corpus-specific knowledge.
+
+Measured across twelve queries (`backend/test/compare_chunk_prefix.py`):
+
+| Strategy | top-4 | top-6 | FAQ ranked #1 |
+|---|---|---|---|
+| Document-title prefix | 8/12 | 8/12 | **8/12** |
+| No prefix | 6/12 | 8/12 | 5/12 |
+| **Subject prefix** | **8/12** | **9/12** | **4/12** |
+
+**Rejected:** *No prefix at all.* It reduced FAQ dominance but lost the context that makes an
+isolated chunk answerable, and scored worst at top-4.
+
+**Consequences:** What you prepend to a chunk is part of what gets embedded, and boilerplate
+repeated across a document becomes a retrieval signal in its own right. Worth remembering before
+adding any per-document header to chunk text.
+
+Two remaining failures were **corpus gaps, not retrieval failures** — no phrasing anchored "who
+does he work for" or "the most technically difficult thing". Both were fixed by writing the answers
+into the corpus, which a portfolio should state plainly regardless. After both changes, "what is he
+doing now" and "the most challenging thing he has built" each return the correct chunk at rank 1.
+
+---
+
 ## Open decisions
 
 Not yet decided. Each will get a full entry when resolved.

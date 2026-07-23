@@ -41,6 +41,9 @@ backend/data/*.sqlite
 backend/data/*.sqlite3
 backend/data/index/
 
+# Transient output from backend/test/run-tests.sh and the comparison scripts.
+backend/test/*.log
+
 # ---------------------------------------------------------------------------
 # Node / web / edge
 # ---------------------------------------------------------------------------

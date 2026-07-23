@@ -176,13 +176,14 @@ The dev machine is **Windows 11 on ARM64** (Snapdragon X Elite). This is not a n
 it bites in specific places:
 
 - **`pip install torch` fails.** PyPI has zero `win_arm64` wheels. They exist only at
-  `https://download.pytorch.org/whl/cpu`. Local backend installs need:
-  ```
-  pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cpu
-  ```
-  This matters because `sentence-transformers/all-MiniLM-L6-v2` depends on torch.
-- **The VM is a *different* ARM64 target.** Oracle Ampere A1 is Linux `aarch64`, where PyPI
-  *does* ship native wheels. Don't apply the extra index to VM or CI installs.
+  `https://download.pytorch.org/whl/cpu`, which `backend/requirements.txt` declares as an extra
+  index. This matters because `sentence-transformers/all-MiniLM-L6-v2` depends on torch.
+- **That index is used on *every* platform, not just here.** PyPI's default Linux torch pulls in
+  the whole CUDA toolkit — several GB of `nvidia-*` packages. Nothing in this project has a GPU.
+  `torch==2.13.0+cpu` publishes wheels for `win_arm64`, `manylinux_2_28_aarch64` (VM, container)
+  and `manylinux_2_28_x86_64` (CI), so one pin covers every target.
+- **`sqlite-vec` has no Windows ARM64 wheel at all.** Backend retrieval tests run in a Linux
+  container: `cd backend/test && ./run-tests.sh`. A native `pytest` skips them.
 - **Flutter has no Windows ARM64 build.** The x64 SDK at `C:\src\flutter` runs under emulation.
   Works, just slower.
 - Shell is PowerShell 7+; a Bash tool is also available. They take different syntax.

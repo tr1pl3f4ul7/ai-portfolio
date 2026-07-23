@@ -2,18 +2,42 @@
 # Test-only packages live in requirements-dev.txt so the 12 GB box never
 # installs pytest.
 #
+# ---------------------------------------------------------------------------
+# torch: CPU build, pinned, on EVERY platform.
+#
+# PyPI's default torch for Linux drags in the entire CUDA toolkit — cudnn,
+# cublas, nccl, triton, cusparselt and friends, several GB of it. Nothing in
+# this project has an NVIDIA GPU: not the Oracle Ampere A1 VM, not the test
+# container, not the GitHub Actions runners. It would all be dead weight on a
+# box with 45 GB of disk.
+#
+# The +cpu build from PyTorch's own index avoids it, and 2.13.0 publishes
+# wheels for manylinux_2_28_aarch64 (VM, container), manylinux_2_28_x86_64
+# (CI) and win_arm64 (dev machine) — so one pin covers every target and dev
+# matches production exactly.
+#
+# This index is also the ONLY source of a Windows ARM64 torch wheel; PyPI has
+# none at all.
+# ---------------------------------------------------------------------------
+--extra-index-url https://download.pytorch.org/whl/cpu
+
+fastapi==0.115.6
+
 # uvicorn, NOT uvicorn[standard]. The [standard] extra pulls in httptools,
 # which has never published a Windows ARM64 wheel, and uvloop, which does not
-# support Windows at all. Splitting the dependency by platform would leave the
-# dev machine and the VM running different server stacks — the exact divergence
+# support Windows. Splitting the dependency by platform would leave the dev
+# machine and the VM running different server stacks — the exact divergence
 # decision 23 removed by aligning Python to 3.12. The extra buys faster HTTP
 # parsing and a faster event loop, neither of which is measurable here: every
 # real request waits on a network call to the Claude API.
-#
-# Local installs on the Windows ARM64 dev machine will need
-#   --extra-index-url https://download.pytorch.org/whl/cpu
-# once torch arrives with sentence-transformers in Step 2.2. Nothing here needs
-# it yet.
-
-fastapi==0.115.6
 uvicorn==0.34.0
+
+# Retrieval. torch is pinned explicitly so sentence-transformers cannot pull
+# the CUDA build in as a transitive dependency.
+torch==2.13.0+cpu
+sentence-transformers==3.3.1
+
+# sqlite-vec publishes no Windows ARM64 wheel at all — those code paths are
+# exercised in the Linux container (see backend/test/), on the VM and in CI,
+# never natively on the dev machine.
+sqlite-vec==0.1.9

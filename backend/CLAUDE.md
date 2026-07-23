@@ -58,12 +58,12 @@ embedded index built from it is a build artefact — regenerate it, don't commit
 
 ## Commands
 
-Local setup (**note the extra index — required on this ARM64 machine**):
+Local setup — the PyTorch index is declared inside `requirements.txt`, so no extra flags:
 
 ```bash
 python -m venv .venv
 .venv\Scripts\Activate.ps1
-pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cpu
+pip install -r requirements.txt -r requirements-dev.txt
 ```
 
 Run and test:
@@ -73,8 +73,24 @@ uvicorn app.main:app --reload
 pytest -v
 ```
 
-The extra index URL is a **local-only** workaround. The VM and CI run Linux, where plain PyPI has
-native torch wheels — don't add it there.
+**Never drop the `--extra-index-url` line from `requirements.txt`, and never unpin `torch`.** It is
+not a Windows workaround — it is what keeps the CUDA toolkit out of every environment. PyPI's
+default Linux torch pulls in several GB of `nvidia-*` packages, and nothing here has a GPU: not the
+Ampere A1 VM, not the test container, not the CI runners.
+
+## Running the full test suite
+
+`sqlite-vec` has no Windows ARM64 wheel, so retrieval tests **cannot** run natively on the dev
+machine — they skip via `importorskip`. A green `pytest` on Windows is therefore not proof.
+
+Before presenting any retrieval work, run the whole suite on Linux:
+
+```bash
+cd backend/test && ./run-tests.sh
+```
+
+That builds a `linux/arm64` image matching the VM and runs everything. Source is bind-mounted, so
+only a `requirements.txt` change forces a rebuild.
 
 ## Python 3.12 everywhere
 
