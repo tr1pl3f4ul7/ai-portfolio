@@ -28,6 +28,14 @@ echo "== iptables FORWARD =="
 iptables -S FORWARD
 echo "blanket_reject_running=$(iptables -S | grep -c -- '-j REJECT --reject-with icmp-host-prohibited')"
 
+echo "== InstanceServices (Oracle link-local egress rules) =="
+echo "instanceservices_running=$(iptables-save 2>/dev/null | grep -c 'InstanceServices' || echo 0)"
+echo "instanceservices_in_ufw=$(grep -c 'InstanceServices' /etc/ufw/before.rules 2>/dev/null || echo 0)"
+# Presence is not enough. The jump must sit in ufw-before-output; appended to
+# OUTPUT it lands after ufw's chains, receives zero packets, and does nothing.
+echo "instanceservices_hooked_early=$(iptables -S ufw-before-output 2>/dev/null | grep -c 'InstanceServices' || echo 0)"
+echo "instanceservices_in_plain_output=$(iptables -S OUTPUT 2>/dev/null | grep -c 'InstanceServices' || echo 0)"
+
 echo "== persisted rules =="
 echo "rules_v4_exists=$(test -f /etc/iptables/rules.v4 && echo yes || echo no)"
 echo "blanket_reject_persisted=$(grep -c -- '-j REJECT --reject-with icmp-host-prohibited' /etc/iptables/rules.v4 2>/dev/null || echo 0)"

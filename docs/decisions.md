@@ -577,6 +577,43 @@ resolve to 3.11. `backend/CLAUDE.md` records the exact path.
 
 ---
 
+## 24. Oracle's InstanceServices rules re-homed into ufw's before-output chain
+
+**Date:** 2026-07-23
+**Status:** accepted
+
+**Context:** Oracle's `rules.v4` defines an `InstanceServices` chain restricting outbound traffic
+to the link-local range `169.254.0.0/16` — the metadata service, iSCSI boot volumes, DNS and NTP.
+Oracle's documentation asks that it be kept.
+
+Decision 20 removes `netfilter-persistent` as a side effect of installing `ufw`, so nothing
+re-applies `rules.v4` at boot. Measured on the VM: **17 InstanceServices rules before a reboot,
+0 after.** Nothing breaks — the `OUTPUT` policy is `ACCEPT`, so traffic still flows — but Oracle's
+egress hardening silently disappears on the first restart.
+
+**Decision:** `setup.sh` copies the rules into `/etc/ufw/before.rules`, ufw's documented hook for
+raw iptables, sourced from the backup taken in decision 20. The chain declaration goes with the
+other declarations after `*filter`; the jump goes **inside `ufw-before-output`**, after the last
+rule ufw ships there. Both blocks are marker-delimited, and each run rebuilds the intended file
+and compares — so a wrongly-placed block from an older run is corrected rather than left alone.
+
+**Rejected:**
+- *Appending the jump to `OUTPUT`* — the first implementation, and it was **wrong**. It looked
+  right: 17 rules present, `ufw status` clean, site serving. Packet counters showed the chain
+  received **zero packets**, because ufw's own chains accept the traffic first. Presence is not
+  effectiveness. After the fix the same measurement showed 2 packets: one ACCEPT to the metadata
+  service, one REJECT with `tcp-reset` for a probe to a disallowed port.
+- *Keeping `netfilter-persistent`* — impossible; `ufw` declares `Breaks` against it (decision 20).
+- *Dropping the rules* — a silent, undocumented weakening of the vendor's security posture.
+
+**Consequences:** ufw owns the whole firewall and restores these rules on every boot. The lesson
+is written into `infra/test/`: the harness asserts the jump is in `ufw-before-output` and **not**
+in plain `OUTPUT`, because the earlier broken version passed a naive "are the rules present?"
+check. The packet-counter measurement itself only works on the VM — a container has no route to
+`169.254.0.0/16`.
+
+---
+
 ## Open decisions
 
 Not yet decided. Each will get a full entry when resolved.

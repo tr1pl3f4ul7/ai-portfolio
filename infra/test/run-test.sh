@@ -119,13 +119,61 @@ check blanket_reject_persisted 0    # ...and from rules.v4, so it survives reboo
 check backup_exists yes             # original ruleset recoverable
 check curl_status 200               # nginx actually serves through the firewall
 
-step "Simulating reboot (re-apply persisted rules)"
-docker exec "${CONTAINER}" bash -c 'iptables-restore < /etc/iptables/rules.v4'
-after=$(docker exec "${CONTAINER}" bash -c "iptables -S | grep -c -- '-j REJECT --reject-with icmp-host-prohibited' || true" | tr -d '\r')
-if [[ ${after} == "0" ]]; then
+# Oracle's link-local egress rules must survive, not be collateral damage --
+# and must be hooked where they actually see traffic. Appended to OUTPUT the
+# jump lands after ufw's chains, receives zero packets, and is inert; it has to
+# be inside ufw-before-output. Measured with packet counters on the VM; a
+# container has no route to 169.254.0.0/16, so only the structure is checked
+# here.
+check instanceservices_hooked_early 1
+
+instsvc=$(docker exec "${CONTAINER}" bash -c "grep -m1 '^instanceservices_in_ufw=' /root/state2.txt | cut -d= -f2-" | tr -d '\r')
+if [[ ${instsvc} -gt 0 ]]; then
+  pass "instanceservices_in_ufw=${instsvc} (ported into before.rules)"
+else
+  fail "InstanceServices rules were not ported into ufw's before.rules"
+  failures=$((failures + 1))
+fi
+
+# Simulate a reboot properly. netfilter-persistent is gone, so rules.v4 is NOT
+# re-applied — ufw alone rebuilds the firewall from before.rules. Flushing and
+# restarting ufw reproduces that.
+step "Simulating reboot (flush tables, let ufw rebuild)"
+docker exec "${CONTAINER}" bash -c 'iptables -F; iptables -X 2>/dev/null; systemctl restart ufw' >/dev/null 2>&1
+
+reject_after=$(docker exec "${CONTAINER}" bash -c "iptables -S | grep -c -- '-j REJECT --reject-with icmp-host-prohibited' || true" | tr -d '\r')
+if [[ ${reject_after} == "0" ]]; then
   pass "blanket REJECT does not return after reboot"
 else
-  fail "blanket REJECT returned after reboot (${after} rules) — port 80 would silently close"
+  fail "blanket REJECT returned after reboot (${reject_after} rules) — port 80 would silently close"
+  failures=$((failures + 1))
+fi
+
+instsvc_after=$(docker exec "${CONTAINER}" bash -c "iptables-save | grep -c 'InstanceServices' || true" | tr -d '\r')
+if [[ ${instsvc_after} -gt 0 ]]; then
+  pass "InstanceServices restored after reboot (${instsvc_after} rules)"
+else
+  fail "InstanceServices missing after reboot — Oracle's egress hardening lost"
+  failures=$((failures + 1))
+fi
+
+# After a reboot nothing re-applies rules.v4, so the ONLY jump should be the one
+# ufw restores into ufw-before-output. A jump left in plain OUTPUT would mean
+# the rules are present but never reached.
+hooked_after=$(docker exec "${CONTAINER}" bash -c "iptables -S ufw-before-output | grep -c 'InstanceServices' || true" | tr -d '\r')
+plain_after=$(docker exec "${CONTAINER}" bash -c "iptables -S OUTPUT | grep -c 'InstanceServices' || true" | tr -d '\r')
+if [[ ${hooked_after} -ge 1 && ${plain_after} == "0" ]]; then
+  pass "after reboot the jump is in ufw-before-output only (not inert in OUTPUT)"
+else
+  fail "after reboot: ufw-before-output=${hooked_after}, OUTPUT=${plain_after} — expected >=1 and 0"
+  failures=$((failures + 1))
+fi
+
+http_after=$(docker exec "${CONTAINER}" bash -c "curl -s -o /dev/null -w '%{http_code}' --max-time 5 http://127.0.0.1/ || echo FAILED" | tr -d '\r')
+if [[ ${http_after} == "200" ]]; then
+  pass "nginx still answers 200 after reboot"
+else
+  fail "nginx returned '${http_after}' after reboot"
   failures=$((failures + 1))
 fi
 

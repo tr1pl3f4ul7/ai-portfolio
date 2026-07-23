@@ -40,6 +40,16 @@ readonly IPTABLES_RULES="/etc/iptables/rules.v4"
 readonly IPTABLES_BACKUP="/etc/iptables/rules.v4.pre-ai-portfolio"
 readonly BLANKET_REJECT="-j REJECT --reject-with icmp-host-prohibited"
 
+# ufw's hook for raw iptables rules, used in section 7 to re-home Oracle's
+# InstanceServices chain. Two separate blocks: the chain declaration must sit
+# with the other declarations at the top, the rules further down. Markers are
+# kept free of regex metacharacters so sed can strip them cleanly.
+readonly UFW_BEFORE="/etc/ufw/before.rules"
+readonly MARK_DECL_BEGIN="# BEGIN ai-portfolio InstanceServices decl"
+readonly MARK_DECL_END="# END ai-portfolio InstanceServices decl"
+readonly MARK_RULES_BEGIN="# BEGIN ai-portfolio InstanceServices rules"
+readonly MARK_RULES_END="# END ai-portfolio InstanceServices rules"
+
 # Bound every apt network call. apt's defaults retry for minutes on an
 # unreachable mirror, which turns a dead network into what looks like a hang —
 # and in CI, into a job that burns its entire timeout before failing.
@@ -262,7 +272,94 @@ else
   fi
 fi
 
-# --- 7. Summary -------------------------------------------------------------
+# --- 7. Re-home Oracle's InstanceServices chain under ufw -------------------
+#
+# Oracle's rules.v4 also defines an InstanceServices chain restricting outbound
+# traffic to the link-local range 169.254.0.0/16 — the metadata service, iSCSI
+# boot volumes, DNS and NTP. Oracle's documentation asks that these be kept.
+#
+# Installing ufw removes netfilter-persistent (see section 6), so nothing
+# re-applies rules.v4 at boot and the chain vanishes on the first reboot.
+# Verified on the VM: 17 InstanceServices rules before a reboot, 0 after.
+# Nothing breaks — the OUTPUT policy is ACCEPT, so the traffic still flows —
+# but Oracle's egress hardening is silently lost.
+#
+# The rules are therefore copied into ufw's before.rules, which is the
+# documented hook for raw iptables rules, so ufw restores them on every boot.
+# Source is the pre-change backup taken in section 6; the block is delimited by
+# markers so re-runs are no-ops.
+
+log "Re-homing Oracle's InstanceServices rules under ufw"
+if [[ ! -f ${IPTABLES_BACKUP} ]] || ! grep -q "InstanceServices" "${IPTABLES_BACKUP}"; then
+  info "no InstanceServices rules in the backup — nothing to port"
+elif [[ ! -f ${UFW_BEFORE} ]]; then
+  warn "${UFW_BEFORE} missing — cannot port InstanceServices rules"
+else
+  instance_rules=$(grep -E '^-A InstanceServices ' "${IPTABLES_BACKUP}" || true)
+
+  if [[ -z ${instance_rules} ]]; then
+    warn "backup mentions InstanceServices but no chain rules matched — skipping"
+  else
+    # Build the file we want, then compare. Any previously inserted block is
+    # stripped first, so a wrongly-placed block from an older run is corrected
+    # rather than left in place — and an already-correct file is a no-op.
+    desired=$(mktemp)
+    stripped=$(mktemp)
+
+    sed -e "\|^${MARK_DECL_BEGIN}$|,\|^${MARK_DECL_END}$|d" \
+        -e "\|^${MARK_RULES_BEGIN}$|,\|^${MARK_RULES_END}$|d" \
+        "${UFW_BEFORE}" > "${stripped}"
+
+    # The jump must live in ufw-before-output, NOT in OUTPUT. Appending to
+    # OUTPUT puts it after ufw's chains, which accept the traffic first — the
+    # chain then receives zero packets and the rules are decorative. Verified
+    # with packet counters on the VM.
+    awk -v db="${MARK_DECL_BEGIN}" -v de="${MARK_DECL_END}" \
+        -v rb="${MARK_RULES_BEGIN}" -v re="${MARK_RULES_END}" \
+        -v rules="${instance_rules}" '
+      /^\*filter/ && !seen_filter {
+        print; print db; print ":InstanceServices - [0:0]"; print de
+        seen_filter = 1
+        next
+      }
+      /^-A ufw-before-output/ { last_out = NR }
+      { line[NR] = $0 }
+      END {
+        for (i = 1; i <= NR; i++) {
+          if (i in line) print line[i]
+          if (i == last_out) {
+            print rb
+            print "-A ufw-before-output -d 169.254.0.0/16 -j InstanceServices"
+            print rules
+            print re
+          }
+        }
+      }
+    ' "${stripped}" > "${desired}"
+
+    if cmp -s "${desired}" "${UFW_BEFORE}"; then
+      ok "InstanceServices rules already correctly placed in ${UFW_BEFORE}"
+      rm -f "${desired}" "${stripped}"
+    else
+      [[ -f ${UFW_BEFORE}.pre-ai-portfolio ]] || cp -a "${UFW_BEFORE}" "${UFW_BEFORE}.pre-ai-portfolio"
+      cp -a "${desired}" "${UFW_BEFORE}"
+      rm -f "${desired}" "${stripped}"
+
+      rule_count=$(printf '%s\n' "${instance_rules}" | grep -c . || true)
+      ok "ported ${rule_count} InstanceServices rule(s) into ufw-before-output"
+
+      if ufw reload >/dev/null 2>&1; then
+        ok "ufw reloaded"
+      else
+        cp -a "${UFW_BEFORE}.pre-ai-portfolio" "${UFW_BEFORE}"
+        ufw reload >/dev/null 2>&1 || true
+        die "ufw rejected the ported rules; ${UFW_BEFORE} has been restored"
+      fi
+    fi
+  fi
+fi
+
+# --- 8. Summary -------------------------------------------------------------
 
 log "Done"
 
