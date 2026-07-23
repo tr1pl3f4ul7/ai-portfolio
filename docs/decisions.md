@@ -428,13 +428,43 @@ require rewriting history.
 
 ---
 
+## 19. Ubuntu 24.04 LTS with the distribution's Python 3.12
+
+**Date:** 2026-07-23
+**Status:** accepted
+
+**Context:** The build plan says "Ubuntu 22.04 or 24.04" (Step 1.1) and "python3.11" (Step 1.2).
+Those are incompatible as written — **neither release ships Python 3.11**: 22.04 ships 3.10 and
+24.04 ships 3.12. A choice was forced before `setup.sh` could be written.
+
+**Decision:** Ubuntu 24.04 LTS, using the distribution's own Python 3.12. `setup.sh` targets
+`python3.12` and installs torch from plain PyPI.
+
+Verified rather than assumed: `torch-2.13.0-cp312-cp312-manylinux_2_28_aarch64.whl` is published
+on PyPI, so `pip install` works unmodified on the VM. (24.04 provides glibc 2.39, comfortably
+above the `manylinux_2_28` floor.)
+
+**Rejected:**
+- *Ubuntu 22.04:* Python 3.10, and standard support ends two years sooner. No advantage.
+- *The deadsnakes PPA to obtain exactly 3.11:* adds a third-party archive to a production VM for
+  no functional benefit. Every dependency this project uses supports 3.12, and a PPA is one more
+  thing that can break an unattended `apt upgrade` or a rebuild months from now.
+
+**Consequences:** A deliberate deviation from the plan's literal "python3.11" — the plan's intent
+was a modern Python, not that specific patch line, and hitting 3.11 exactly would have cost more
+than it returned. Local development stays on Python 3.11 (decision 8), so **the dev machine and
+the VM run different minor versions**. Acceptable because the project pins no 3.11- or
+3.12-specific syntax, but it means CI — which should mirror the VM — must target 3.12, and a
+version-sensitive bug could in principle appear on one and not the other.
+
+---
+
 ## Open decisions
 
 Not yet decided. Each will get a full entry when resolved.
 
 | Decision | Blocked on | Notes |
 |---|---|---|
-| **Ubuntu version and Python version** | Step 1.1 | The plan says "Ubuntu 22.04 or 24.04" and "python3.11", but 22.04 ships Python 3.10 and 24.04 ships 3.12 — neither ships 3.11. Proposal: 24.04 with stock Python 3.12, avoiding a third-party PPA. Alternative: 22.04 or 24.04 plus deadsnakes for exactly 3.11. Awaiting LJ. |
 | **Web framework** | Step 3.1 | The plan defers to LJ's choice of design direction. The test tooling follows from it (Vitest vs Playwright). Recorded as open in `web/CLAUDE.md`. |
 | **TLS termination** | Step 5.2 | certbot on the VM, or Cloudflare edge TLS with an origin certificate in "full strict" mode. |
 | **Contact notification channel** | Step 2.4 | SMTP vs webhook, and the corresponding credentials. |

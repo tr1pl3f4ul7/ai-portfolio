@@ -12,7 +12,7 @@ Two jobs:
 
 | Concern | Choice | Notes |
 |---|---|---|
-| Framework | FastAPI (Python 3.11) | |
+| Framework | FastAPI | **Python 3.11 locally, 3.12 on the VM and in CI** — see below |
 | Vector store | `sqlite-vec` | Embedded — no separate service to run or monitor |
 | Embeddings | `sentence-transformers/all-MiniLM-L6-v2` | 384-dim, CPU-only, ARM64-friendly |
 | LLM | Anthropic Claude API | Haiku for triage (cost), Sonnet if quality demands it |
@@ -73,5 +73,16 @@ uvicorn app.main:app --reload
 pytest -v
 ```
 
-The extra index URL is a **local-only** workaround. The VM and CI run Linux `aarch64`, where
-plain PyPI has native torch wheels — don't add it there.
+The extra index URL is a **local-only** workaround. The VM and CI run Linux, where plain PyPI has
+native torch wheels — don't add it there.
+
+## Python version split — deliberate, not drift
+
+| Where | Python | Why |
+|---|---|---|
+| Dev machine | 3.11 | Already installed; torch has `cp311` Windows-ARM64 wheels on the PyTorch index |
+| Oracle VM | **3.12** | Ubuntu 24.04's stock interpreter — no third-party PPA needed |
+| CI | **3.12** | Must mirror the VM, not the dev machine |
+
+Decision 19 in `docs/decisions.md` has the reasoning. Pin nothing that is 3.11- or 3.12-specific,
+and when writing CI, target **3.12** — matching production matters more than matching the laptop.
