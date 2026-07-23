@@ -107,8 +107,17 @@ No, and that should be said plainly. The VR and AR work is concentrated between 
 using Unity3D with Google Cardboard and Samsung GearVR. The headsets have moved on considerably
 since.
 
-What remains current from it is the transferable part: working within hard performance budgets,
-3D and spatial reasoning, and shipping to unusual hardware.
+The work itself covered educational games for government programmes (**Hood VR**, presented in
+more than 20 schools), safety training (**Wincanton Fire Safety**), promotional experiences
+(**OMV VR**), and film promotion — **Hellboy VR**, built at SolvedOut for Lions Gate.
+
+Hellboy VR was the hardest of them. The brief was cinematic visual quality on a **phone-driven
+headset**, where the entire render budget is a mobile GPU inside a plastic shell with no active
+cooling and a hard frame-time ceiling before the viewer feels motion sickness. Getting film-grade
+quality out of that is a genuine engineering constraint, not an art problem.
+
+What remains current from all of it is the transferable part: working within hard performance
+budgets, 3D and spatial reasoning, and shipping to unusual hardware.
 
 ## What else is he interested in?
 
@@ -152,7 +161,8 @@ His decade of mobile engineering, his security background and his XR work are al
 to that, rather than things he is looking to leave behind. A role combining any of them with AI
 would suit him well.
 
-He is based in Brisbane, Queensland, Australia and has worked remotely since 2022.
+He is based in Brisbane, Queensland, Australia, and is an experienced remote worker: remotely on
+freelance projects since 2017, and in his contract and full-time roles since 2020.
 
 ## How do I contact him?
 

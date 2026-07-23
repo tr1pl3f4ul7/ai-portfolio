@@ -2,16 +2,44 @@
 
 ## Who he is
 
-Ljuben Vassilev is a mobile and software engineer based in Brisbane, Queensland, Australia. He
-began his software career in 2016 and has ten years of professional experience.
+Ljuben Vassilev is a mobile engineer specialising in AI-augmented software development, based in
+Brisbane, Queensland, Australia. He began his software career in 2016 and has ten years of
+professional experience.
 
-Mobile development is his core discipline and where most of that decade was spent — Android in
-Java and Kotlin, then Flutter and Dart. Around it he has built two further specialisations:
-real-time 3D for VR and AR, and application security.
+**Mobile is the foundation; AI is the specialisation he has built on top of it.** A decade of
+shipping Android in Java and Kotlin, then Flutter and Dart, gave him the engineering judgement —
+and he now applies it to building, deploying and operating AI systems. He works at an AI company,
+uses AI tooling as a daily production workflow, engineers that tooling rather than just consuming
+it, and has built and deployed a four-layer AI system end to end on infrastructure he provisioned
+himself.
+
+Two further specialisations sit alongside: application security, backed by a Master's degree and
+three years as an Application Security Engineer, and real-time 3D for VR and AR.
 
 He currently works as a Software Engineer at AI Talent, and previously spent four years at
 PropertyMe, where he held two concurrent roles: Software Engineer and Application Security
 Engineer.
+
+## AI focus
+
+This is where his attention is, and where he intends his career to go.
+
+**In his day job**, AI-assisted development is his normal workflow — Claude Code and GitHub Copilot
+across multiple underlying models, at an AI company, delivering production software.
+
+**Beyond using the tools**, he engineers them: building reusable agent skills, multi-agent
+orchestration loops that decompose work and adversarially review it, and deep familiarity with the
+agent harness itself — context, memory, hooks, tool permissions.
+
+**And he ships AI systems, not just AI-assisted code.** This site runs inference in four distinct
+places, each chosen for a different reason: an on-device model in the visitor's browser, a
+classifier at the network edge, a retrieval pipeline over a local vector store on a server he
+provisioned and hardened, and a cloud API for generation. He selected the embedding model by
+benchmarking five candidates against his own corpus rather than by reputation, and published the
+results — along with the decisions he got wrong first time.
+
+His security background gives that an edge few applied-AI engineers have: he thinks about untrusted
+input reaching a model, and about the infrastructure inference runs on, as security problems.
 
 ## How he describes himself
 
@@ -26,7 +54,7 @@ and TV set-top boxes.
 
 ## The shape of his career
 
-**Mobile is the spine of it, from 2016 to today.** He started as a junior Android developer at
+**Mobile is the spine of it, from 2016 to today.** He started as an Android developer at
 Allterco in Sofia after completing the IT Talents Training Camp bootcamp, then worked across
 consultancy and product companies in banking, telecoms, logistics and retail, before moving to
 Australia and to Flutter.
@@ -61,6 +89,9 @@ built it to run AI inference in four different places, on infrastructure he prov
 
 ## Location and contact
 
-Based in Brisbane, Queensland, Australia. Works remotely and has done so since 2022.
+Based in Brisbane, Queensland, Australia.
+
+He has a long track record of working remotely: on freelance projects since 2017, and in his
+contract and full-time roles since 2020. Remote work is his normal mode, not an adjustment.
 
 Contact is through the contact form on this site. He is on LinkedIn at linkedin.com/in/lvassilev.

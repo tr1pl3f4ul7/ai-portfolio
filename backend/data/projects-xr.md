@@ -43,10 +43,28 @@ downloaded.
 
 ## Hellboy VR — film promotion (Lions Gate Entertainment Inc., December 2017)
 
-Built during Ljuben's short contract at **SolvedOut**.
+Built at **SolvedOut**, where it was the entirety of Ljuben's work — a single project, start to
+finish.
 
-A 360-degree video game built with Unity3D as a Google Cardboard promotional experience for the
-film *Hellboy: Rise of the Blood Queen* (2019).
+A 360-degree virtual reality experience built with Unity3D to promote *Hellboy: Rise of the Blood
+Queen* (2019), delivered on **Google Cardboard**.
+
+**The hard part was quality on hardware that fights you.** The experience ran **dual 8K
+stereoscopic camera video** — one 8K stream per eye — on Android phones slotted into Cardboard
+headsets. That combination is genuinely hostile:
+
+- **Decode budget.** Two 8K streams is far beyond what a phone of that era decoded comfortably,
+  and both have to stay in sync frame for frame or the stereo effect breaks and the viewer feels it
+  immediately.
+- **Frame-time ceiling.** Drop below the headset's refresh threshold in VR and users don't perceive
+  it as jank, they feel nauseous. The budget is not negotiable the way it is on a flat screen.
+- **No active cooling.** A phone sealed inside a plastic shell thermally throttles, so performance
+  that passes a cold test can fail five minutes into a session.
+- **A film client's quality bar.** Lions Gate were promoting a feature film; visibly compressed or
+  soft footage was not acceptable.
+
+Getting cinematic footage through that pipeline was an engineering problem rather than an artistic
+one, and it is the piece of Ljuben's XR work he rates most highly.
 
 ## Madara Rider AR — proof of concept at Allterco (June 2017)
 

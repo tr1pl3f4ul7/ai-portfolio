@@ -104,27 +104,41 @@ speed. **Atlantic Money**, for Banque Atlantique in Cameroon, was a Software Gro
 
 Technologies: Java, Android, Android Studio, Git, Jira, Gradle.
 
-## VR Developer at SolvedOut (late 2017 – early 2018)
+## VR Developer at SolvedOut (November 2017 – December 2017)
 
-Sofia, Bulgaria. A short contract role working on VR promotional experiences, including
-**Hellboy VR** for Lions Gate Entertainment.
+Sofia, Bulgaria. A short contract role dedicated entirely to a single project: **Hellboy VR**, a
+promotional virtual reality experience for Lions Gate Entertainment.
 
-## Junior Android Developer at Allterco (late 2016 – late 2017)
+The technical demand was cinematic quality on consumer hardware — **dual 8K stereoscopic camera
+video** played back on **Android Cardboard headsets**. Delivering that resolution stereoscopically
+on a phone, within a mobile GPU's decode and frame-time budget and with no active cooling, was the
+whole engineering problem.
+
+## Android Developer at TERACOMM, part of Allterco (November 2016 – October 2017)
 
 On-site in Sofia, Bulgaria. Ljuben's first software engineering role, taken directly after
 graduating from the **IT Talents Training Camp**, a Bulgarian software engineering bootcamp where
 his development career began.
 
 Allterco is best known as the company behind the MyKi range of children's smartwatches, and at the
-time it also ran a substantial client services business. Ljuben worked across both:
+time it also ran a substantial client services business and a hardware lab. Ljuben worked across
+all three:
 
-- **MyKi Watch** — the companion application for Allterco's own smartwatch product.
+- **MyKi Watch** — Allterco's own smartwatch product. He built the companion Android application
+  for parents, **and wrote the games that run on the watch itself** — in Java, since the watches
+  are Android devices. Constrained on-device development: a tiny screen, a small battery, and a
+  user who is a child.
+- **Neonatal monitoring proof of concept** — a tablet application for hospital neonatology, reading
+  live data from **pulse oximeters and O₂ meters for babies**. The devices were being developed in
+  Allterco's own hardware lab, with firmware written by his colleagues, so the work involved heavy
+  **Bluetooth Low Energy** communication against hardware that was still changing underneath him.
 - **Mtel TV Box** — a set-top box launcher for the mobile operator Mtel.
 - **Happy Call** — a ringback tone service for the telecoms operator Vivacom.
-- **Madara Rider AR** — an augmented reality proof of concept he built for a potential project.
+- **Madara Rider AR** — an augmented reality proof of concept for a potential project.
 
-So his first job spanned in-house product work and external client delivery at the same time — a
-useful education in how differently the two are run.
+So his first job spanned in-house product work, external client delivery, and firmware-adjacent
+medical hardware integration at the same time — an unusually broad education in how differently
+each is run.
 
 This is where he learned Android in production rather than in training: shipping real applications
 to real users, and picking up the habits that carried through the rest of his career.

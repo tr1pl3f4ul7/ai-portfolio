@@ -8,13 +8,55 @@ heavily. Everything else grew around it.
 
 ## AI-assisted development
 
-**Claude Code and GitHub Copilot** — used daily in his current role at AI Talent, across multiple
-underlying models, both to accelerate delivery and to raise code quality. This is production
-workflow rather than experimentation.
+His most actively developing area, and production workflow rather than experimentation.
 
-He also built the site you are reading. It runs AI inference in four different places — in the
+**Claude Code and GitHub Copilot**, used daily across multiple underlying models. But the
+distinction he draws is between *using* an AI coding tool and *engineering* one:
+
+- **Building skills** — packaging repeatable procedures so an agent follows a defined process
+  rather than improvising, with the standards and pitfalls encoded once instead of re-explained
+  every session.
+- **Orchestration loops** — multi-agent patterns where work is decomposed, executed in parallel,
+  adversarially reviewed and iterated until it clears a defined bar, rather than accepted on the
+  first plausible answer.
+- **Mastering the harness** — context management, memory, hooks, tool permissions and configuration.
+  Knowing where an agent's leverage actually comes from, and where it does not.
+
+He also built the site you are reading, which runs AI inference in four different places — in the
 browser, at the edge, on a server he provisioned himself, and via a cloud API — with the
-architectural reasoning documented in a public decision log.
+architectural reasoning, the rejected alternatives and the mistakes documented in a public decision
+log.
+
+## Team leadership and Scrum mastery
+
+For roughly the last six months, across both PropertyMe and AI Talent, Ljuben has been **Scrum
+master for his team** alongside his engineering work:
+
+- Running and organising ceremonies, and keeping the team synchronised.
+- **Retrospectives** treated as a mechanism for change rather than a ritual — surfacing what is
+  actually slowing the team and acting on it.
+- **Planning sessions** to map out the work ahead and make commitments the team can meet.
+- **Refinement** to sharpen focus, so effort lands on the right problems before anyone writes code.
+
+It is a deliberate second track next to the technical one: he is as interested in why a team ships
+slowly as in why a build is slow.
+
+## Developer tooling and engineering productivity
+
+A sustained focus, and the work he is most often the one to pick up:
+
+| Area | What that means in practice |
+|---|---|
+| **CI/CD pipelines** | Building and maintaining the build, test and release path |
+| **Console and environment setup** | Getting projects and cloud consoles into a state where the team can work |
+| **Certificate rotation** | Signing and TLS certificates renewed before they expire, not after |
+| **Secrets management** | Repository and pipeline secrets configured and kept out of source control |
+| **Dependency maintenance** | Library and SDK updates done continuously rather than as a crisis |
+| **Automation and scripting** | Removing the manual steps that quietly consume a team's week |
+
+The common thread is friction. Most of this work is invisible when it is done well, which is
+exactly why it tends to go undone — and why he has repeatedly been described as the driving force
+of automation in his teams.
 
 ## Mobile development
 
