@@ -15,6 +15,9 @@ don't create these files earlier.
 
 ## Rules
 
+- **The default branch is `master`, not `main`.** Every `on: push:` trigger targets
+  `branches: [master]`. A workflow pointed at `main` will never fire and gives no error — it
+  simply sits there looking correct.
 - **Path filters are the whole point.** A web copy change must not redeploy the backend. Every
   workflow declares `paths:` — and remember a workflow editing its own file needs that path
   filtered too, or it won't retrigger.
