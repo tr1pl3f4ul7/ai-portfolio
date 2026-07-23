@@ -248,3 +248,31 @@ Two multi-agent workflows sit behind these:
 Both spawn many agents and cost real tokens. **They run only when explicitly invoked**, and
 neither is a substitute for LJ's `✅ VERIFY`. Don't reach for orchestration on a one-file change —
 that's the over-engineering Principle 2 forbids.
+
+---
+
+## MCP First
+
+**Before reaching for a CLI, check whether an MCP server can do the job.** Fall back to the CLI
+only when none can — and say which it was and why.
+
+Servers are managed through Docker's MCP Toolkit (ships with Docker Desktop). The local profile is
+`ai_portfolio`. `.mcp.json` is gitignored because it hardcodes machine-specific paths; recreate it
+with:
+
+```
+docker mcp profile create --name "ai-portfolio" --server "catalog://mcp/docker-mcp-catalog/github-official"
+docker mcp client connect --profile ai_portfolio claude-code
+docker mcp oauth authorize github
+```
+
+| Service | Status | Notes |
+|---|---|---|
+| GitHub | connected | `github-official`, OAuth — prefer over the `gh` CLI |
+| Sentry | not yet | Connect at Step 2.5 |
+| Cloudflare | not yet | Several servers; connect at Phase 4 |
+| Flutter/Dart | not yet | Connect at Phase 6 |
+| **Docker** | **no server exists** | The catalog has no daemon-control server — `docker-docs` and `dockerhub` only. `docker mcp` is a *gateway* for running other servers, not a way to drive Docker. `infra/test/` uses the CLI, and needs `--privileged`, `--cgroupns=host` and `docker cp`, which no community server exposes |
+| **Oracle Cloud** | **none official** | Not in the catalog. Community OCI servers exist but would hold control-plane credentials for the tenancy — not worth the blast radius (Principle 6) |
+
+Discover what exists: `docker mcp catalog show mcp/docker-mcp-catalog:latest` (314 servers).

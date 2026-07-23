@@ -73,6 +73,10 @@ mobile/android/key.properties
 # Editors / OS / tooling
 # ---------------------------------------------------------------------------
 .claude/settings.local.json
+# Written by `docker mcp client connect`. Hardcodes Windows-specific paths and
+# points at a local Docker MCP profile, so it is machine-specific rather than
+# shared config. Recreate it with the commands in CLAUDE.md.
+.mcp.json
 .vscode/
 .idea/
 *.swp
