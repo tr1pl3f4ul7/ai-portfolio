@@ -11,6 +11,12 @@ where the thinking lives.
 | `architecture.md` | Mermaid diagram + walkthrough of all four inference layers | 8.1 |
 | `decisions.md` | Decision log — what was chosen, what was rejected, and why | 8.1 (append throughout) |
 | `runbook.md` | Deploy, rotate secrets, restart services, recover from failure | 8.1 |
+| `future-enhancements.md` | Ideas deferred until the plan is finished | — |
+| `PROJECT_PLAN.md` | The build plan itself — the governing document | — |
+
+**`future-enhancements.md` is explicitly out of scope.** Nothing in it may be started before all
+eight phases are complete. Each entry records what must exist first, so the ordering is not a
+matter of memory.
 
 ## The audience test
 
