@@ -1,0 +1,9 @@
+# Test-only dependencies. Never installed on the VM.
+# Install alongside the runtime set:
+#   pip install -r requirements.txt -r requirements-dev.txt
+
+-r requirements.txt
+
+pytest==8.3.4
+# Required by starlette's TestClient.
+httpx==0.28.1

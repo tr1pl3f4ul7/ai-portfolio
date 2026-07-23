@@ -614,6 +614,38 @@ check. The packet-counter measurement itself only works on the VM — a containe
 
 ---
 
+## 25. Plain `uvicorn`, not `uvicorn[standard]`
+
+**Date:** 2026-07-23
+**Status:** accepted
+
+**Context:** `pip install uvicorn[standard]` fails on the Windows ARM64 dev machine. The extra
+pulls in `httptools`, which has **never** published a `win_arm64` wheel — only `win_amd64`, across
+every release — so pip falls back to compiling from source and fails. The extra also wants
+`uvloop`, which does not support Windows at all.
+
+**Decision:** Depend on plain `uvicorn` everywhere — dev, VM and CI.
+
+**Rejected:**
+- *Platform-split dependencies*, e.g. `uvicorn[standard]; sys_platform != "win32"` alongside
+  `uvicorn; sys_platform == "win32"`. It works, and it would give the VM the faster HTTP parser
+  and event loop. Rejected because it leaves the dev machine and production running **different
+  server stacks** — precisely the divergence decision 23 removed by aligning Python to 3.12. A
+  bug that only appears under `httptools` would be invisible locally.
+- *Building `httptools` from source locally.* Requires a C toolchain, on every machine, forever,
+  for no measurable gain.
+
+**Consequences:** Slower HTTP parsing and the default asyncio event loop. Not measurable for this
+workload: every `/chat` and `/contact` request waits on a network round-trip to the Claude API,
+which dominates latency by orders of magnitude. Also loses `watchfiles` (`--reload` falls back to
+stat polling) and `websockets` (unused). Worth revisiting only if profiling ever shows the server
+loop as a bottleneck, which for a portfolio site it will not.
+
+This is the third ARM64 packaging trap on this project, after torch (decision 8) and the Flutter
+SDK (decision 9).
+
+---
+
 ## Open decisions
 
 Not yet decided. Each will get a full entry when resolved.

@@ -1,0 +1,19 @@
+# Runtime dependencies only — this is what gets installed on the VM.
+# Test-only packages live in requirements-dev.txt so the 12 GB box never
+# installs pytest.
+#
+# uvicorn, NOT uvicorn[standard]. The [standard] extra pulls in httptools,
+# which has never published a Windows ARM64 wheel, and uvloop, which does not
+# support Windows at all. Splitting the dependency by platform would leave the
+# dev machine and the VM running different server stacks — the exact divergence
+# decision 23 removed by aligning Python to 3.12. The extra buys faster HTTP
+# parsing and a faster event loop, neither of which is measurable here: every
+# real request waits on a network call to the Claude API.
+#
+# Local installs on the Windows ARM64 dev machine will need
+#   --extra-index-url https://download.pytorch.org/whl/cpu
+# once torch arrives with sentence-transformers in Step 2.2. Nothing here needs
+# it yet.
+
+fastapi==0.115.6
+uvicorn==0.34.0
