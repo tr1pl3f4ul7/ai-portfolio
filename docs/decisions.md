@@ -459,6 +459,97 @@ version-sensitive bug could in principle appear on one and not the other.
 
 ---
 
+## 20. ufw is the sole firewall; Oracle's blanket REJECT is deleted
+
+**Date:** 2026-07-23
+**Status:** accepted
+
+**Context:** Oracle's Ubuntu images ship an iptables ruleset ending in a blanket
+`REJECT --reject-with icmp-host-prohibited` on INPUT and FORWARD, persisted in
+`/etc/iptables/rules.v4`. The build plan calls for `ufw`. The two interact badly, and the failure
+is invisible: the OCI security list allows 80/443, `ufw status` shows them allowed, and the port
+is still shut.
+
+**Decision:** `ufw` is the single source of truth. `setup.sh` deletes the blanket REJECT from the
+running chains **and** from `rules.v4`, backing the original up to
+`rules.v4.pre-ai-portfolio` first.
+
+Two things were tested rather than assumed:
+- **Enabling ufw does not displace the REJECT.** It survives and sits ahead of every ufw chain, so
+  no ufw rule is ever evaluated.
+- **`ufw` and `iptables-persistent` cannot coexist** — the `ufw` package declares
+  `Breaks: iptables-persistent`. Attempting to install both fails outright.
+
+**Rejected:**
+- *Inserting ACCEPT rules above the REJECT* (the first implementation). It works, but the rules
+  cannot be persisted — `netfilter-persistent` comes from `iptables-persistent`, which `ufw`
+  breaks — so they would evaporate on the first reboot.
+- *Flushing the INPUT chain.* Faster, and a good way to drop your own SSH session mid-run.
+- *Dropping ufw in favour of raw iptables.* Contradicts the plan, and hands the reader a less
+  conventional setup for no benefit.
+
+**Consequences:** One firewall, one mental model. Oracle's legitimate rules (`RELATED,ESTABLISHED`,
+`lo`, ICMP, port 22) are preserved — only the blanket REJECT is removed. Verified by simulated
+reboot: re-applying `rules.v4` does not bring it back.
+
+---
+
+## 21. apt operations are bounded and verified
+
+**Date:** 2026-07-23
+**Status:** accepted
+
+**Context:** During testing, `apt-get update` hung for over ten minutes against an unreachable
+mirror rather than failing. Separately, `apt-get update` **exits 0 even when every index fetch
+fails** — the failures are only warnings — so the script reported "package lists current" having
+fetched nothing.
+
+**Decision:** All apt calls carry explicit timeouts and bounded retries
+(`Acquire::Retries=2`, connect 10s, http 20s). `apt-get update` is judged by inspecting its output
+for fetch failures rather than by its exit code, retried up to three times with backoff, and the
+script dies with a diagnostic naming the two commands worth running (`getent`, `curl`) if it still
+fails.
+
+**Rejected:** Trusting apt's exit code, and accepting apt's default retry behaviour. Both were the
+original implementation. A bootstrap that hangs indefinitely is bad on a VM and worse in CI, where
+it burns the job's entire timeout before failing with no useful signal. Installing from stale
+package lists is a subtler version of the same problem.
+
+**Consequences:** ~30 lines of retry and validation logic — a real cost against Principle 2,
+accepted because the failure it prevents is silent and expensive. Note this hardens against
+*network* failure, not mirror corruption.
+
+---
+
+## 22. Infrastructure is tested in a container before it touches the VM
+
+**Date:** 2026-07-23
+**Status:** accepted
+
+**Context:** Step 1.2 requires proving `setup.sh` is idempotent. The obvious place to run it is the
+VM itself.
+
+**Decision:** `infra/test/` boots Ubuntu 24.04 `aarch64` with **systemd as PID 1**, seeds it with
+Oracle's real ruleset, runs `setup.sh` twice, and asserts a byte-identical state plus a live HTTP
+200 through the firewall and a simulated-reboot check.
+
+**Rejected:**
+- *Testing on the VM first.* Rejected on LJ's instruction, and rightly: a bootstrap script that
+  can lock you out of your own box via `ufw` is exactly the thing to prove elsewhere first.
+- *A plain container without systemd.* `setup.sh` manages units; without an init system it aborts
+  at the first `systemctl` and everything below goes untested.
+
+**Consequences:** The container caught three real defects before they reached the VM: `ufw allow
+OpenSSH` depending on a package profile that may not exist, the `ufw`/`iptables-persistent`
+incompatibility, and apt hanging on network failure. The harness also cost significant time to
+stabilise — including a self-inflicted bug where the seed's lone REJECT rule blocked the
+container's own DNS replies, which looked for a while like a Docker fault.
+
+A container is not a VM. Real SSH lockout risk, Oracle's actual image contents, and genuine reboot
+behaviour are still only provable on the VM.
+
+---
+
 ## Open decisions
 
 Not yet decided. Each will get a full entry when resolved.
