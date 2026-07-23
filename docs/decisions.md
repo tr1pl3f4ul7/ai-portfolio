@@ -182,7 +182,7 @@ default security list separately.
 ## 8. Local Python 3.11 with PyTorch's own wheel index
 
 **Date:** 2026-07-23
-**Status:** accepted
+**Status:** accepted — **version choice superseded by decision 23** (the extra-index-URL finding still stands)
 
 **Context:** The dev machine is Windows 11 on ARM64 (Snapdragon X Elite). The plan pins
 `sentence-transformers/all-MiniLM-L6-v2`, which depends on PyTorch. Verified by testing:
@@ -452,10 +452,10 @@ above the `manylinux_2_28` floor.)
 
 **Consequences:** A deliberate deviation from the plan's literal "python3.11" — the plan's intent
 was a modern Python, not that specific patch line, and hitting 3.11 exactly would have cost more
-than it returned. Local development stays on Python 3.11 (decision 8), so **the dev machine and
-the VM run different minor versions**. Acceptable because the project pins no 3.11- or
-3.12-specific syntax, but it means CI — which should mirror the VM — must target 3.12, and a
-version-sensitive bug could in principle appear on one and not the other.
+than it returned. CI must target 3.12 to mirror the VM.
+
+This initially left the dev machine on 3.11 and the VM on 3.12. That gap is closed by
+decision 23.
 
 ---
 
@@ -547,6 +547,33 @@ container's own DNS replies, which looked for a while like a Docker fault.
 
 A container is not a VM. Real SSH lockout risk, Oracle's actual image contents, and genuine reboot
 behaviour are still only provable on the VM.
+
+---
+
+## 23. Local Python aligned to 3.12
+
+**Date:** 2026-07-23
+**Status:** accepted — supersedes the version choice in decision 8
+
+**Context:** Decision 19 put the VM on Ubuntu 24.04's stock Python 3.12 while the dev machine ran
+3.11, purely because 3.11 was already installed. A dev/production version gap is a latent source
+of bugs that reproduce on one and not the other, and it makes CI's target ambiguous.
+
+**Decision:** Install Python 3.12.10 (ARM64) locally. **Local, VM, and CI all run 3.12.**
+
+Verified rather than assumed: `torch-2.13.0+cpu / cp312 / win_arm64` resolves from
+`https://download.pytorch.org/whl/cpu`, so the ARM64 workaround from decision 8 works unchanged
+on 3.12.
+
+**Rejected:**
+- *Keeping the split.* Cheap today, and the class of bug it invites — works locally, fails on the
+  VM — is expensive precisely when you can least afford it, mid-deploy.
+- *Downgrading the VM to 3.11.* Would need a third-party PPA on the production box, which
+  decision 19 rejected for good reason.
+
+**Consequences:** 3.11 remains installed locally and does no harm, but `backend/` targets 3.12 —
+the venv must be created with the 3.12 interpreter explicitly, since `python` on PATH may still
+resolve to 3.11. `backend/CLAUDE.md` records the exact path.
 
 ---
 

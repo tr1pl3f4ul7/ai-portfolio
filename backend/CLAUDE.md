@@ -76,13 +76,22 @@ pytest -v
 The extra index URL is a **local-only** workaround. The VM and CI run Linux, where plain PyPI has
 native torch wheels — don't add it there.
 
-## Python version split — deliberate, not drift
+## Python 3.12 everywhere
 
-| Where | Python | Why |
-|---|---|---|
-| Dev machine | 3.11 | Already installed; torch has `cp311` Windows-ARM64 wheels on the PyTorch index |
-| Oracle VM | **3.12** | Ubuntu 24.04's stock interpreter — no third-party PPA needed |
-| CI | **3.12** | Must mirror the VM, not the dev machine |
+| Where | Python |
+|---|---|
+| Dev machine | 3.12 |
+| Oracle VM | 3.12 (Ubuntu 24.04 stock) |
+| CI | 3.12 |
 
-Decision 19 in `docs/decisions.md` has the reasoning. Pin nothing that is 3.11- or 3.12-specific,
-and when writing CI, target **3.12** — matching production matters more than matching the laptop.
+Decisions 19 and 23 in `docs/decisions.md` have the reasoning. **Target 3.12 in CI** — it mirrors
+production.
+
+⚠️ Python 3.11 is also installed on this machine and `python` on PATH may still resolve to it.
+Create the venv with the 3.12 interpreter explicitly:
+
+```
+C:\Users\tr1pl3f4ul7\AppData\Local\Programs\Python\Python312-arm64\python.exe -m venv .venv
+```
+
+Check with `.venv\Scripts\python --version` before installing anything.

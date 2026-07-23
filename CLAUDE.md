@@ -187,8 +187,10 @@ it bites in specific places:
   Works, just slower.
 - Shell is PowerShell 7+; a Bash tool is also available. They take different syntax.
 
-Installed toolchain: Python 3.11.9, Node 24.18.0, npm 11.16.0, gh 2.96.0, Flutter 3.44.7,
-Android Studio + SDK 36.1.0 + JDK 21.
+Installed toolchain: Python 3.12.10 (**use this**; 3.11.9 also present but `backend/` targets
+3.12 to match the VM and CI), Node 24.18.0, npm 11.16.0, gh 2.96.0, Flutter 3.44.7,
+Android Studio + SDK 36.1.0 + JDK 21, shellcheck 0.11.0, Docker Desktop 4.83.0 with MCP
+Toolkit 0.43.1.
 
 ---
 
