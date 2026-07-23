@@ -46,13 +46,9 @@ one spans multiple layers, and a Firebase/Supabase split would be two unrelated 
 shared reasoning" is a far stronger signal than "we picked Sentry." The rejections are the
 evidence that a decision actually happened.
 
-Decisions already made and owed an entry:
-- Sentry + PostHog over Firebase/Supabase (rationale in `docs/PROJECT_PLAN.md` §2)
-- Oracle Ampere A1 as the server target
-- `sqlite-vec` over a hosted vector database
-- `flutter_local_ai` over bundling a model in the app
-- The local ARM64 torch index workaround
-- Whatever gets decided in Step 3.1 (web framework) and Step 5.2 (TLS mode)
+`decisions.md` is live and back-filled through Phase 1. Decisions still outstanding are tracked in
+its **Open decisions** table — move an entry out of that table and into a full entry the moment it
+is resolved, rather than batching them up.
 
 ## `runbook.md`
 
