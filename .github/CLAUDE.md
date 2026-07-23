@@ -1,0 +1,49 @@
+# .github/ — CI/CD
+
+Path-filtered workflows deploying one monorepo to **four independent targets**. Built in Phase 7;
+don't create these files earlier.
+
+## Workflows
+
+| File | Trigger path | Target |
+|---|---|---|
+| `backend-ci.yml` | `backend/**` | lint + `pytest` |
+| `backend-deploy.yml` | `backend/**` | SSH to Oracle VM, restart systemd |
+| `edge-deploy.yml` | `edge/**` | `wrangler deploy` |
+| `web-deploy.yml` | `web/**` | GitHub Pages / Cloudflare Pages |
+| `mobile-build.yml` | `mobile/**` + tags | APK artefact |
+
+## Rules
+
+- **Path filters are the whole point.** A web copy change must not redeploy the backend. Every
+  workflow declares `paths:` — and remember a workflow editing its own file needs that path
+  filtered too, or it won't retrigger.
+- **Every deploy workflow ends with a post-deploy smoke test.** Backend → `/health` returns 200.
+  Edge → Worker URL answers both a clean and a spam payload. Web → the site actually serves.
+  A deploy step that reports success without verifying the target is live is worse than no
+  workflow, because it manufactures false confidence.
+- **Never live-call the Claude API in CI.** Mock it. CI runs on every push; a live call means
+  paying for every commit and flaking whenever the API is slow.
+- **Secrets by name only, never inlined.** Reference `${{ secrets.NAME }}`. Never `echo` a
+  secret, never put one in a step name or an artefact. Names are listed in §5 of
+  `docs/PROJECT_PLAN.md`.
+- **Pin actions to a version.** `actions/checkout@v4`, not `@main`.
+- **Least privilege**: set `permissions:` explicitly per workflow rather than inheriting the
+  default token scope.
+- Concurrency-guard deploys so two pushes can't deploy over each other:
+  ```yaml
+  concurrency:
+    group: deploy-backend
+    cancel-in-progress: false
+  ```
+  Note `cancel-in-progress: false` — cancelling a half-finished deploy is how you get a broken VM.
+
+## Runner architecture
+
+GitHub's standard runners are **x64 Linux**. The VM is `aarch64`. CI therefore tests on a
+different architecture than production. That's acceptable for pure-Python tests, but it means CI
+green does **not** prove the VM install works — which is exactly why the post-deploy `/health`
+smoke test is mandatory rather than nice-to-have.
+
+Don't add the local ARM64 torch index (`download.pytorch.org/whl/cpu`) to CI. That's a
+Windows-ARM64 dev-machine workaround; Linux runners resolve torch from PyPI normally.
