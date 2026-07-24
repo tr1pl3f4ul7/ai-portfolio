@@ -1183,6 +1183,46 @@ twenty values around.
 
 ---
 
+## 42. Both store submissions are in scope
+
+**Date:** 2026-07-25
+**Status:** accepted — closes the "mobile store submission" open decision
+
+**Context:** Step 6.4 is written as optional and asks whether Apple Developer and Google Play
+Developer accounts are in scope, since producing a build artefact does not require either.
+
+**Decision:** Both are in scope. The Flutter app ships to the **Apple App Store** and **Google
+Play** from the one codebase. Step 6.4 stops being optional.
+
+**Rejected:** *Build artefacts only.* Enough to demonstrate the app runs, and free — but a
+published listing is materially stronger evidence than a `.apk` in a release page, and shipping
+through review is itself part of the mobile skillset the portfolio is arguing for.
+
+**Consequences:**
+
+- **A Mac is required for iOS, and the dev machine is Windows ARM64.** Flutter cannot build or
+  sign an iOS app off macOS — this is the hard constraint of the whole phase and it has no
+  workaround on Windows. The repo being **public** resolves it cheaply: GitHub Actions provides
+  free `macos` runners for public repositories, so iOS builds and uploads can run in CI without
+  owning Apple hardware. Confirm that at Phase 7 rather than assuming it, and treat "no Mac" as a
+  live risk until an iOS archive has actually been produced.
+- **First recurring cost in the project.** Apple Developer Program is charged annually
+  (~99 USD at time of writing); Google Play is a one-off registration (~25 USD). Verify both at
+  signup. Everything else here has been deliberately free-tier — decision 4 exists precisely to
+  keep the cloud bill at zero — so this is a conscious exception, not drift.
+- **Both stores require accurate data-collection declarations** (Apple's privacy labels, Google
+  Play's Data Safety form). The app sends visitor-authored text to the backend and on to the
+  Claude API, and the contact form collects a name, an email address and a message. Those answers
+  must match what the code actually does; the `/contact` triage flow and its retention are the
+  parts to describe carefully.
+- **Phase 7 gains signing secrets**: an Android upload keystore and Apple certificates plus a
+  provisioning profile, added to §5 of the plan. `mobile/android/key.properties` is already
+  gitignored. Signing material never enters the repo.
+- Review timelines are outside our control and can add days. Do not schedule the store submission
+  as the last task before showing the portfolio to anyone.
+
+---
+
 ## Open decisions
 
 Not yet decided. Each will get a full entry when resolved.
@@ -1190,4 +1230,3 @@ Not yet decided. Each will get a full entry when resolved.
 | Decision | Blocked on | Notes |
 |---|---|---|
 | **TLS termination** | Step 5.2 | certbot on the VM, or Cloudflare edge TLS with an origin certificate in "full strict" mode. |
-| **Mobile store submission** | Step 6.4 | Whether Apple Developer / Google Play accounts are in scope at all. |
