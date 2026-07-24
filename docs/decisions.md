@@ -1015,6 +1015,42 @@ no visibility into its failures is the actual bigger risk.
 
 ---
 
+## 37. First deploy is rsync-from-local over SSH, not a Git pull
+
+**Date:** 2026-07-24
+**Status:** accepted
+
+**Context:** Step 2.6 puts the backend on the VM for the first time. The code has to get there
+somehow, and the six Phase 2 commits are deliberately local — `origin/master` on GitHub still
+sits at the Phase 0/1 infra work.
+
+**Decision:** `infra/deploy.sh` runs from the dev machine and rsyncs `backend/` straight to the VM
+over the existing SSH key, then provisions the rest remotely (venv, `python -m app.ingest`, the
+systemd unit, the nginx site, restart, `/health` smoke). No push, no clone.
+
+**Rejected:** *Push to GitHub and have the VM clone/pull.* It would force a push now — reversing the
+local-only stance — and, for a private repo, a deploy key on the VM. It also front-runs Phase 7,
+whose whole job is the path-filtered GitHub Actions pipeline. This first deploy is a bridge to that,
+not a substitute for it.
+
+**Consequences:**
+
+- Phase 7 replaces `deploy.sh` with CI/CD. Until then this is the deploy path, and it is manual by
+  design — I run it and watch the output.
+- `deploy.sh` needs `rsync` on the VM; it is not in `setup.sh`'s package set, so the script
+  installs it on first run (a guarded, one-off apt call).
+- Ingestion runs on the VM at deploy time (decision 27), so the first deploy is slow: torch and the
+  embedding model download before the vector store can be built. Subsequent deploys reuse both.
+- The unit file is boot-tested in a container first (`infra/test/verify-unit.sh`) — it reproduces
+  the VM's layout, starts the real unit, and asserts `/health` answers, the process is non-root,
+  and the service refuses to start without `/etc/ai-portfolio.env`. We do not test in production;
+  the unit is proven before the deploy touches the VM.
+- The post-deploy smoke test (`infra/smoke-remote.sh`) checks `/health` always, and `/chat` +
+  `/contact` only behind `--all`, because those two spend money and send real email. A routine
+  redeploy does not, a first deploy does.
+
+---
+
 ## Open decisions
 
 Not yet decided. Each will get a full entry when resolved.

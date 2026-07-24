@@ -1,0 +1,64 @@
+[Unit]
+# FastAPI backend for the AI portfolio, served by uvicorn behind nginx.
+Description=AI portfolio backend (FastAPI + uvicorn)
+Documentation=https://github.com/tr1pl3f4ul7/ai-portfolio
+# Don't start until the network is actually up — the app reaches the Claude API
+# and Resend on its first real request, and Sentry at startup.
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=exec
+
+# Never root. This account is created by infra/setup.sh with no login shell.
+User=aiportfolio
+Group=aiportfolio
+
+WorkingDirectory=/opt/ai-portfolio/backend
+
+# Secrets and config live here, root-owned and outside the repo. The unit will
+# not start if it is missing (no leading '-'), which is deliberate: booting the
+# service with no API key would only fail later, at the first request, in a way
+# that is harder to diagnose than a refusal to start.
+EnvironmentFile=/etc/ai-portfolio.env
+
+# Keep the embedding model's cache on a writable path the service owns, rather
+# than in the service account's home, so ProtectHome can stay on.
+Environment=HF_HOME=/opt/ai-portfolio/hf-cache
+
+# ONE worker, on purpose. The rate limiter's counters live in process memory
+# (decision 31); a second worker would get its own counters and silently double
+# both the per-IP and the global daily limits. Do not add --workers here without
+# first moving the limiter to shared storage.
+ExecStart=/opt/ai-portfolio/venv/bin/uvicorn app.main:app \
+    --host 127.0.0.1 --port 8000 --workers 1 --proxy-headers
+
+# nginx is the only thing that talks to this port, on loopback. Binding to
+# 127.0.0.1 above means the app is never reachable from outside the box even if
+# a firewall rule is wrong.
+
+Restart=always
+RestartSec=3
+# If it crashes five times inside a minute, stop trying and leave it failed for
+# an operator to look at, rather than crash-looping and filling the journal.
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+# --- Hardening --------------------------------------------------------------
+# Least privilege for a process that parses untrusted input from the internet.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ProtectControlGroups=true
+ProtectKernelTunables=true
+RestrictSUIDSGID=true
+# The app writes only under its own tree — the vector store and the submissions
+# database, both in backend/data — plus the model cache.
+ReadWritePaths=/opt/ai-portfolio/backend/data /opt/ai-portfolio/hf-cache
+
+# Logs go to the journal; rotation is configured in Step 8.2.
+SyslogIdentifier=ai-portfolio
+
+[Install]
+WantedBy=multi-user.target
