@@ -1,0 +1,20 @@
+{
+  "name": "ai-portfolio-web",
+  "private": true,
+  "type": "module",
+  "description": "One-page portfolio site. The browser inference layer and the front door for the rest.",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.1",
+    "jsdom": "^29.1.1",
+    "typescript": "^7.0.2",
+    "vite": "^8.1.5",
+    "vitest": "^4.1.10"
+  }
+}

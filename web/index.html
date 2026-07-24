@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en-AU">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#0C1013" />
+
+    <title>Ljuben Vassilev — mobile engineer, AI systems</title>
+    <meta
+      name="description"
+      content="Mobile engineer, ten years. This site runs AI inference in four different places — in your browser, at the edge, on a server I provisioned, and at the Claude API."
+    />
+
+    <link rel="stylesheet" href="/src/styles/tokens.css" />
+    <link rel="stylesheet" href="/src/styles/main.css" />
+  </head>
+
+  <body>
+    <main class="page">
+      <!-- ================= HERO ================= -->
+      <header class="hero">
+        <p class="label">brisbane, australia</p>
+        <h1 class="display">ljuben vassilev</h1>
+        <p class="lede">
+          Mobile engineer, ten years. I build AI systems that run in four
+          different places — including this page.
+        </p>
+
+        <!-- The thesis, as a component. Timings fill in as you use the page;
+             nothing here is a stand-in for a number we haven't measured. -->
+        <section class="trace" aria-label="Where this site runs inference">
+          <div class="trace-bar">
+            <span class="trace-dot" aria-hidden="true"></span>
+            <span class="label">inference trace</span>
+          </div>
+
+          <div class="trace-row" data-layer="browser">
+            <span class="trace-rail" aria-hidden="true"></span>
+            <span class="trace-where">browser</span>
+            <span class="trace-what">Summarises my experience on your device</span>
+            <span class="trace-cost" data-cost>your machine</span>
+          </div>
+
+          <div class="trace-row" data-layer="edge">
+            <span class="trace-rail" aria-hidden="true"></span>
+            <span class="trace-where">edge</span>
+            <span class="trace-what">Screens contact submissions before they travel</span>
+            <span class="trace-cost" data-cost>cloudflare</span>
+          </div>
+
+          <div class="trace-row" data-layer="server">
+            <span class="trace-rail" aria-hidden="true"></span>
+            <span class="trace-where">server</span>
+            <span class="trace-what">Retrieves from a vector store I provisioned</span>
+            <span class="trace-cost" data-cost>brisbane</span>
+          </div>
+
+          <div class="trace-row" data-layer="cloud">
+            <span class="trace-rail" aria-hidden="true"></span>
+            <span class="trace-where">cloud</span>
+            <span class="trace-what">Generates the grounded answer</span>
+            <span class="trace-cost" data-cost>claude api</span>
+          </div>
+        </section>
+      </header>
+
+      <!-- ================= CHAT ================= -->
+      <section class="section" data-reveal>
+        <div class="section-head">
+          <p class="label">ask</p>
+          <h2 class="heading">two of those layers, right now</h2>
+        </div>
+        <p class="prose">
+          This retrieves from a vector store on my own server, then asks Claude to
+          answer only from what it found. It cites the sections it used, and shows
+          you the real round trip.
+        </p>
+        <div id="chat" class="chat"></div>
+      </section>
+
+      <!-- ================= WORK ================= -->
+      <section class="section" data-reveal>
+        <div class="section-head">
+          <p class="label">selected work</p>
+          <h2 class="heading">things that had to not break</h2>
+        </div>
+
+        <ol class="work">
+          <li class="work-item">
+            <h3 class="work-name">PropertyMe</h3>
+            <p class="work-note">
+              Flutter apps for property owners, tenants and managers. Two audiences,
+              one codebase, four years.
+            </p>
+          </li>
+          <li class="work-item">
+            <h3 class="work-name">Ozone Warehouse</h3>
+            <p class="work-note">
+              Android on industrial barcode scanners — kiosk mode, self-updating,
+              five warehouse processes off paper. If it stopped, the warehouse
+              stopped.
+            </p>
+          </li>
+          <li class="work-item">
+            <h3 class="work-name">Hellboy VR</h3>
+            <p class="work-note">
+              Dual 8K stereoscopic video on phone-driven headsets, for Lions Gate.
+              No active cooling, one frame budget.
+            </p>
+          </li>
+          <li class="work-item">
+            <h3 class="work-name">Montblanc Hub</h3>
+            <p class="work-note">
+              Companion app for a smart writing set, built against a graphic tablet
+              that was still in the hardware workshop.
+            </p>
+          </li>
+          <li class="work-item">
+            <h3 class="work-name">Neonatal monitoring</h3>
+            <p class="work-note">
+              Tablet app reading pulse oximeters for newborns over Bluetooth Low
+              Energy, against firmware that changed underneath it.
+            </p>
+          </li>
+          <li class="work-item">
+            <h3 class="work-name">MyKi</h3>
+            <p class="work-note">
+              Children's smartwatch companion — and the games running on the watch
+              itself, in Java, on a very small screen.
+            </p>
+          </li>
+        </ol>
+      </section>
+
+      <!-- ================= CONTACT ================= -->
+      <section class="section" data-reveal>
+        <div class="section-head">
+          <p class="label">contact</p>
+          <h2 class="heading">say hello</h2>
+        </div>
+        <p class="prose">
+          This goes to a triage endpoint that classifies it, drafts me a reply, and
+          emails me. You'll get a reference back.
+        </p>
+        <div id="contact" class="contact"></div>
+      </section>
+
+      <footer class="footer">
+        <p class="label">
+          built in the open ·
+          <a href="https://github.com/tr1pl3f4ul7/ai-portfolio">github.com/tr1pl3f4ul7/ai-portfolio</a>
+        </p>
+        <p class="label">
+          <a href="https://linkedin.com/in/lvassilev">linkedin</a>
+        </p>
+      </footer>
+    </main>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

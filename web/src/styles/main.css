@@ -1,0 +1,556 @@
+/* Terminal-native. Every colour, size, duration and radius comes from
+   tokens.css, which is generated from design/tokens.json — see
+   docs/design-system.md. No hardcoded values in this file. */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-ground);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-size: var(--size-s0);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3,
+p,
+ol,
+ul {
+  margin: 0;
+}
+
+a {
+  color: var(--color-signal);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.2em;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-signal);
+  outline-offset: 2px;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* --- layout ---------------------------------------------------------- */
+
+.page {
+  max-width: 54rem;
+  margin-inline: auto;
+  padding: var(--space-6) var(--space-5) var(--space-8);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.section-head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* --- type ------------------------------------------------------------ */
+
+.label {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--color-ink-faint);
+}
+
+.display {
+  font-family: var(--font-mono);
+  font-size: clamp(2rem, 7vw, var(--size-s4));
+  font-weight: 500;
+  letter-spacing: var(--tracking-display);
+  line-height: 1.05;
+  text-transform: lowercase;
+  text-wrap: balance;
+}
+
+.heading {
+  font-family: var(--font-mono);
+  font-size: var(--size-s2);
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  text-transform: lowercase;
+  text-wrap: balance;
+}
+
+.lede {
+  font-size: var(--size-s1);
+  color: var(--color-ink-dim);
+  max-width: 34em;
+}
+
+.prose {
+  color: var(--color-ink-dim);
+  max-width: 60ch;
+}
+
+/* --- hero ------------------------------------------------------------ */
+
+.hero {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding-top: var(--space-5);
+}
+
+.hero .trace {
+  margin-top: var(--space-3);
+}
+
+/* --- the inference trace --------------------------------------------- */
+
+.trace {
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-sharp);
+  background: var(--color-surface);
+  overflow: hidden;
+}
+
+.trace-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  background: var(--color-surface-alt);
+  border-bottom: 1px solid var(--color-line-soft);
+}
+
+.trace-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--color-signal);
+  flex: none;
+  animation: trace-blink 2.4s ease-in-out infinite;
+}
+
+@keyframes trace-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.trace-row {
+  display: grid;
+  grid-template-columns: 0.9rem minmax(5rem, 6rem) 1fr auto;
+  gap: var(--space-3);
+  align-items: center;
+  padding: var(--space-3);
+  border-top: 1px solid var(--color-line-soft);
+  font-family: var(--font-mono);
+  font-size: var(--size-s-1);
+}
+
+.trace-row:first-of-type {
+  border-top: 0;
+}
+
+.trace-rail {
+  width: 3px;
+  height: 1.5rem;
+  border-radius: 2px;
+  opacity: 0.55;
+  animation: trace-pulse 4s ease-in-out infinite;
+}
+
+/* Cool = runs near the visitor. Warm = runs on our infrastructure. */
+[data-layer="browser"] .trace-rail {
+  background: var(--color-layer-browser);
+  animation-delay: 0s;
+}
+[data-layer="edge"] .trace-rail {
+  background: var(--color-layer-edge);
+  animation-delay: 0.5s;
+}
+[data-layer="server"] .trace-rail {
+  background: var(--color-layer-server);
+  animation-delay: 1s;
+}
+[data-layer="cloud"] .trace-rail {
+  background: var(--color-layer-cloud);
+  animation-delay: 1.5s;
+}
+
+[data-layer="browser"] .trace-where {
+  color: var(--color-layer-browser);
+}
+[data-layer="edge"] .trace-where {
+  color: var(--color-layer-edge);
+}
+[data-layer="server"] .trace-where {
+  color: var(--color-layer-server);
+}
+[data-layer="cloud"] .trace-where {
+  color: var(--color-layer-cloud);
+}
+
+@keyframes trace-pulse {
+  0%,
+  62%,
+  100% {
+    opacity: 0.35;
+    transform: scaleY(0.7);
+  }
+  12%,
+  26% {
+    opacity: 1;
+    transform: scaleY(1);
+  }
+}
+
+.trace-where {
+  font-weight: 500;
+}
+
+.trace-what {
+  font-family: var(--font-sans);
+  color: var(--color-ink-dim);
+}
+
+.trace-cost {
+  color: var(--color-ink-faint);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* A real measurement, not a description of where the layer lives. */
+.trace-cost.is-measured {
+  color: var(--color-ink);
+}
+
+@media (max-width: 34rem) {
+  .trace-row {
+    grid-template-columns: 0.9rem 1fr auto;
+  }
+  .trace-what {
+    display: none;
+  }
+}
+
+/* --- chat ------------------------------------------------------------ */
+
+.chat {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.chat-transcript {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.chat-transcript:empty {
+  display: none;
+}
+
+.chat-exchange {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  border-left: 2px solid var(--color-line);
+  padding-left: var(--space-4);
+}
+
+.chat-question {
+  font-family: var(--font-mono);
+  font-size: var(--size-s-1);
+  color: var(--color-ink);
+}
+
+.chat-question::before {
+  content: "> ";
+  color: var(--color-signal);
+}
+
+.chat-pending {
+  font-family: var(--font-mono);
+  font-size: var(--size-s-1);
+  color: var(--color-ink-faint);
+}
+
+.chat-answer {
+  color: var(--color-ink-dim);
+  max-width: 60ch;
+}
+
+.chat-sources {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: baseline;
+}
+
+.chat-sources-label,
+.chat-source,
+.chat-timing {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+}
+
+.chat-sources-label,
+.chat-timing {
+  color: var(--color-ink-faint);
+}
+
+.chat-source {
+  color: var(--color-layer-server);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-sharp);
+  padding: 0.1rem var(--space-2);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.chat-error {
+  color: var(--color-danger);
+  font-size: var(--size-s-1);
+}
+
+.chat-form {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.chat-input,
+.contact-form input,
+.contact-form textarea {
+  flex: 1;
+  min-width: 0;
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-sharp);
+  color: var(--color-ink);
+  font-family: var(--font-mono);
+  font-size: var(--size-s-1);
+  padding: var(--space-3);
+  transition: border-color var(--motion-fast) var(--motion-easing);
+}
+
+.chat-input::placeholder,
+.contact-form ::placeholder {
+  color: var(--color-ink-faint);
+}
+
+.chat-input:focus,
+.contact-form input:focus,
+.contact-form textarea:focus {
+  border-color: var(--color-signal);
+}
+
+.chat-input:disabled {
+  opacity: 0.6;
+}
+
+.chat-send,
+.contact-send {
+  background: transparent;
+  border: 1px solid var(--color-signal);
+  border-radius: var(--radius-sharp);
+  color: var(--color-signal);
+  font-family: var(--font-mono);
+  font-size: var(--size-s-1);
+  padding: var(--space-3) var(--space-4);
+  cursor: pointer;
+  transition:
+    background var(--motion-fast) var(--motion-easing),
+    color var(--motion-fast) var(--motion-easing);
+}
+
+.chat-send:hover:not(:disabled),
+.contact-send:hover:not(:disabled) {
+  background: var(--color-signal);
+  color: var(--color-ground);
+}
+
+.chat-send:disabled,
+.contact-send:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.chat-prompts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.chat-prompt {
+  background: transparent;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-sharp);
+  color: var(--color-ink-faint);
+  font-family: var(--font-sans);
+  font-size: var(--size-s-1);
+  padding: var(--space-2) var(--space-3);
+  cursor: pointer;
+  transition:
+    border-color var(--motion-fast) var(--motion-easing),
+    color var(--motion-fast) var(--motion-easing);
+}
+
+.chat-prompt:hover {
+  border-color: var(--color-signal);
+  color: var(--color-ink);
+}
+
+/* --- work ------------------------------------------------------------ */
+
+.work {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: var(--space-5);
+}
+
+.work-item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  border-top: 1px solid var(--color-line);
+  padding-top: var(--space-3);
+}
+
+.work-name {
+  font-family: var(--font-mono);
+  font-size: var(--size-s0);
+  font-weight: 500;
+  color: var(--color-ink);
+}
+
+.work-note {
+  font-size: var(--size-s-1);
+  color: var(--color-ink-dim);
+}
+
+/* --- contact --------------------------------------------------------- */
+
+.contact-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  max-width: 34rem;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.field label {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--color-ink-faint);
+}
+
+.contact-form textarea {
+  resize: vertical;
+  font-family: var(--font-sans);
+  line-height: 1.6;
+}
+
+.field-error {
+  font-size: var(--size-s-1);
+  color: var(--color-danger);
+}
+
+.contact-send {
+  align-self: flex-start;
+}
+
+.contact-status {
+  font-family: var(--font-mono);
+  font-size: var(--size-s-1);
+}
+
+.contact-status.is-sent {
+  color: var(--color-ok);
+}
+
+.contact-status.is-error {
+  color: var(--color-danger);
+}
+
+/* --- footer ---------------------------------------------------------- */
+
+.footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-3);
+  border-top: 1px solid var(--color-line);
+  padding-top: var(--space-4);
+}
+
+/* --- reveal ---------------------------------------------------------- */
+
+[data-reveal] {
+  opacity: 0;
+  transform: translateY(0.75rem);
+  transition:
+    opacity var(--motion-base) var(--motion-easing),
+    transform var(--motion-base) var(--motion-easing);
+}
+
+[data-reveal].is-revealed {
+  opacity: 1;
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  /* Never leave a reveal stuck invisible if the observer never runs. */
+  [data-reveal] {
+    opacity: 1;
+    transform: none;
+  }
+}
