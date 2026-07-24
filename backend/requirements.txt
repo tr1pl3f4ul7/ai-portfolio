@@ -55,3 +55,8 @@ email-validator==2.3.0
 # there — but it is a runtime dependency, not a dev one, because config.py
 # imports it unconditionally.
 python-dotenv==1.2.2
+
+# Error tracking. Off unless SENTRY_DSN is set, so it does nothing locally or in
+# tests — but it is imported at startup on the VM, so it belongs in the runtime
+# set, not the dev one.
+sentry-sdk==2.66.1

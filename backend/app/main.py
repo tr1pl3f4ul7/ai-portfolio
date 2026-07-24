@@ -11,7 +11,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel
 
-from app import notify, rag, ratelimit, submissions, triage
+from app import notify, observability, rag, ratelimit, submissions, triage
 from app.config import CONTACT_DAILY_LIMIT_PER_IP, CONTACT_DAILY_LIMIT_TOTAL
 from app.schemas import (
     ChatRequest,
@@ -21,6 +21,11 @@ from app.schemas import (
     ErrorResponse,
     Source,
 )
+
+# Before the app is constructed: Sentry's ASGI integration wraps the app at
+# init time, so initialising it after would leave requests untraced. A no-op
+# unless SENTRY_DSN is set, which it is not locally or in tests.
+observability.init_sentry()
 
 limiter = ratelimit.DailyRateLimiter()
 
@@ -164,3 +169,17 @@ def contact(payload: ContactRequest, request: Request) -> ContactResponse:
         print(f"warning: notification failed for {reference}: {exc}")
 
     return ContactResponse(received=True, reference=reference)
+
+
+@app.get("/debug/error", include_in_schema=False)
+def debug_error() -> None:
+    """Raise on purpose, so a real error can be seen reaching Sentry.
+
+    This is how the Step 2.5 verification is done: hit this once against the
+    running VM and confirm the exception appears in the dashboard. Kept out of
+    the OpenAPI schema so it is not advertised, and it carries no data — the
+    message is a fixed string, nothing from the request — so triggering it
+    reveals nothing. It stays because it is also the fastest way to confirm
+    error reporting still works after any future change.
+    """
+    raise RuntimeError("Deliberate test error from /debug/error — Sentry wiring check.")

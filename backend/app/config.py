@@ -140,3 +140,23 @@ CONTACT_NOTIFY_TO = os.environ.get("CONTACT_NOTIFY_TO", "")
 # goes to LJ and nobody else — so no domain verification is needed. Point this
 # at a verified ljubenvassilev.com address if that ever changes.
 CONTACT_NOTIFY_FROM = os.environ.get("AI_PORTFOLIO_CONTACT_FROM", "onboarding@resend.dev")
+
+# ---------------------------------------------------------------------------
+# Error tracking (Sentry)
+# ---------------------------------------------------------------------------
+
+# Empty means disabled, which is the correct default: locally and in tests
+# nothing should be shipped to a third party. Set it on the VM (and only there)
+# to turn error reporting on. The DSN is write-only — it can send events, not
+# read them — so it is less sensitive than an API key, but it still identifies
+# the project and still lives in .env, never in the repo.
+SENTRY_DSN = os.environ.get("SENTRY_DSN", "")
+
+# Tags every event so production errors are not mixed with anything else. When
+# the CI pipeline runs the backend it should set this to something like "ci".
+SENTRY_ENVIRONMENT = os.environ.get("AI_PORTFOLIO_ENV", "development")
+
+# Fraction of requests traced for performance. 0.1 is plenty of signal on a
+# low-traffic portfolio without generating much data; every *error* is still
+# captured regardless of this — it governs performance spans, not exceptions.
+SENTRY_TRACES_SAMPLE_RATE = float(os.environ.get("AI_PORTFOLIO_SENTRY_TRACES", "0.1"))

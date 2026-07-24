@@ -975,6 +975,46 @@ nothing about the value already exposed. Update this line once the old key is re
 
 ---
 
+## 36. Sentry error tracking, initialised with PII off and a hand-scrub on top
+
+**Date:** 2026-07-24
+**Status:** accepted
+
+**Context:** Step 2.5 calls for error tracking before the backend deploys. The obvious risk is the
+one the rest of Phase 2 spent effort avoiding: this service handles a stranger's name, email and
+message on `/contact`, and a visitor's questions on `/chat`. An error tracker that ships request
+context by default would exfiltrate exactly that to a third party, inside every stack trace.
+
+**Decision:** `sentry-sdk` with the FastAPI/Starlette integrations, initialised at module load
+(before the app is constructed, so the ASGI integration wraps it), and **off unless `SENTRY_DSN`
+is set** — so it does nothing locally or in tests and is a VM-only act. Two layers of privacy:
+`send_default_pii=False`, and a `before_send` / `before_send_transaction` hook that additionally
+strips the request body, cookies, query string, client IP, and the `Authorization` /
+`Cookie` / `X-Real-IP` / `X-Forwarded-For` headers by hand.
+
+**Rejected:** *The SDK quickstart as written.* It relies on `send_default_pii` alone, which is one
+default-flip away from leaking, and captures more context than this service can safely send.
+*A self-hosted error store.* Real infrastructure to run and secure on a 12 GB box, for a volume of
+errors a hosted free tier absorbs trivially. *No error tracking.* Deploying a public service with
+no visibility into its failures is the actual bigger risk.
+
+**Consequences:**
+
+- Off by default is load-bearing: forgetting to set the DSN fails safe (no reporting) rather than
+  unsafe (reporting to the wrong project).
+- The hand-scrub is defence in depth — if a future SDK version changes a default, the events are
+  still cleaned on the way out. `test_observability.py` pins every field it removes and, as
+  importantly, the fields it keeps (stack trace, error type, request *path*), so scrubbing cannot
+  quietly start throwing away what makes an error useful.
+- The DSN is write-only, so it is less sensitive than the API keys — but it still lives in `.env`,
+  never the repo, and is set only on the VM.
+- A hidden `GET /debug/error` raises a fixed-string exception on purpose. It is how the VERIFY step
+  is done and the fastest way to confirm reporting still works after any later change. It is out of
+  the OpenAPI schema and carries no request data, so triggering it reveals nothing.
+- Performance tracing is sampled at 0.1; every *error* is still captured regardless.
+
+---
+
 ## Open decisions
 
 Not yet decided. Each will get a full entry when resolved.
