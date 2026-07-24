@@ -1051,6 +1051,41 @@ not a substitute for it.
 
 ---
 
+## 38. The VM environment file must be LF; PowerShell writes CRLF
+
+**Date:** 2026-07-24
+**Status:** accepted — written after it bit us
+
+**Context:** The secrets were placed in the local `.env` with PowerShell's `Add-Content` and
+`Set-Content`, which write **CRLF** line endings. The first deploy piped that file to the VM with
+`cat .env | ssh … install …`, carrying the carriage returns across unchanged. The shape check gave
+it away: every value from `.env` was exactly one character longer than expected (a trailing `\r`),
+while the one line added with bash `echo` was correct.
+
+**Why it matters:** `systemd`'s `EnvironmentFile` does **not** strip `\r`. The service would have
+booted with `ANTHROPIC_API_KEY=sk-ant-…\r` — a key with a garbage byte on the end. `/health` uses
+no keys, so it would have gone green; `/chat` and `/contact` would have failed auth and Sentry
+would not have initialised. A deploy that looks successful and is quietly broken — the worst kind.
+(Note the local smoke tests passed earlier only because Docker's `--env-file` happens to strip
+`\r`; systemd does not, which is why it surfaced on the VM and not on the dev machine.)
+
+**Decision:** Strip carriage returns everywhere the env file is handled. The VM copy was fixed in
+place (`sed -i 's/\r$//'`), the local `.env` converted to LF (`tr -d '\r'`), and the shape check —
+names and byte-lengths, never values — is now the standard proof that a secrets file is clean, on
+the VM or locally.
+
+**Consequences:**
+
+- The byte-length check is not cosmetic. A value one longer than expected is a `\r`; run it after
+  any PowerShell-authored secrets edit.
+- This is the env-file cousin of the shell-script line-ending rule (`.gitattributes` pins `*.sh`
+  and `infra/**` to LF). `.env` is gitignored so `.gitattributes` cannot police it — the discipline
+  has to live in how the file is written and checked.
+- If `deploy.sh` ever grows a path that writes the env file (it does not today — it only reads it),
+  that path must normalise line endings.
+
+---
+
 ## Open decisions
 
 Not yet decided. Each will get a full entry when resolved.

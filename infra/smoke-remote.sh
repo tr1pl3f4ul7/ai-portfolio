@@ -69,10 +69,16 @@ check_chat() {
 # --- /contact (real email) --------------------------------------------------
 
 check_contact() {
+  # ASCII-only payload on purpose. This script is run from Git Bash on Windows,
+  # which mangles multi-byte UTF-8 characters (e.g. an em-dash) in a curl -d
+  # argument and produces a 400 — even though the server handles UTF-8 correctly
+  # (the real client is the browser's fetch, which sends proper UTF-8). Keep the
+  # smoke payload plain ASCII so the test says something about the server, not
+  # about the shell it ran from.
   local response
   response=$(curl -fsS --max-time 60 -X POST "${URL}/contact" \
     -H 'Content-Type: application/json' \
-    -d '{"name":"Smoke Test","email":"smoke-test@example.com","message":"Automated post-deploy smoke test — please ignore. If you received this email, the contact chain works end to end on the VM."}') \
+    -d '{"name":"Smoke Test","email":"smoke-test@example.com","message":"Automated post-deploy smoke test - please ignore. If you received this email, the contact chain works end to end on the VM."}') \
     || { fail "/contact did not return 200"; return 1; }
 
   if grep -q '"received":true' <<<"${response}"; then

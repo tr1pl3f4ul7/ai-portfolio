@@ -62,8 +62,13 @@ remote() { ssh "${ssh_opts[@]}" "${TARGET}" "$@"; }
 
 # --- Preflight --------------------------------------------------------------
 
-command -v rsync >/dev/null 2>&1 || die "rsync is required on this machine"
-command -v ssh   >/dev/null 2>&1 || die "ssh is required on this machine"
+# The code is pushed with tar over ssh, not rsync: Git Bash on Windows ships
+# tar, scp and ssh but NOT rsync. rsync is still used VM-side for the copy into
+# place (installed there below), where --delete matters; it just isn't needed
+# on this machine.
+command -v tar >/dev/null 2>&1 || die "tar is required on this machine"
+command -v scp >/dev/null 2>&1 || die "scp is required on this machine"
+command -v ssh >/dev/null 2>&1 || die "ssh is required on this machine"
 [[ -d ${BACKEND}    ]] || die "backend/ not found at ${BACKEND}"
 [[ -f ${UNIT_SRC}   ]] || die "systemd unit not found at ${UNIT_SRC}"
 [[ -f ${NGINX_SRC}  ]] || die "nginx config not found at ${NGINX_SRC}"
@@ -84,29 +89,32 @@ fi
 # --- 1. Sync code to a staging area -----------------------------------------
 #
 # Into a staging dir owned by the login user first, then moved into place under
-# the service account by the remote block. rsync straight into a root-owned,
-# aiportfolio-owned tree would need --rsync-path=sudo gymnastics; staging is
-# simpler and the copy into place is a single guarded step.
+# the service account by the remote block. Copying straight into a root-owned,
+# aiportfolio-owned tree would need sudo gymnastics; staging is simpler and the
+# copy into place is a single guarded step.
+#
+# The push is a tar stream over ssh rather than rsync — see the preflight note.
+# Excludes: the venv, the secrets file, byte-compiled and cached files, the
+# built vector store and any submissions database (rebuilt on the VM), and logs.
+# .env in particular must never travel.
 
 log "Syncing backend/ to ${STAGE}"
-remote "mkdir -p ${STAGE}"
-rsync -az --delete \
-  --exclude '.venv/' \
-  --exclude '.env' \
-  --exclude '.env.example' \
-  --exclude '__pycache__/' \
-  --exclude '.pytest_cache/' \
-  --exclude '*.pyc' \
-  --exclude 'data/*.db' \
-  --exclude 'data/*.sqlite*' \
-  --exclude 'test/*.log' \
-  -e "ssh ${ssh_opts[*]}" \
-  "${BACKEND}/" "${TARGET}:${STAGE}/backend/"
+remote "rm -rf ${STAGE}/backend && mkdir -p ${STAGE}/backend"
+tar czf - -C "${BACKEND}" \
+  --exclude='.venv' \
+  --exclude='.env*' \
+  --exclude='__pycache__' \
+  --exclude='.pytest_cache' \
+  --exclude='*.pyc' \
+  --exclude='*.db' \
+  --exclude='*.sqlite*' \
+  --exclude='*.log' \
+  . | remote "tar xzf - -C ${STAGE}/backend"
 ok "code synced"
 
 # The unit and nginx config travel alongside the code.
-rsync -az -e "ssh ${ssh_opts[*]}" "${UNIT_SRC}"  "${TARGET}:${STAGE}/${SERVICE}.service"
-rsync -az -e "ssh ${ssh_opts[*]}" "${NGINX_SRC}" "${TARGET}:${STAGE}/${SERVICE}.conf"
+scp "${ssh_opts[@]}" "${UNIT_SRC}"  "${TARGET}:${STAGE}/${SERVICE}.service"
+scp "${ssh_opts[@]}" "${NGINX_SRC}" "${TARGET}:${STAGE}/${SERVICE}.conf"
 ok "unit and nginx config staged"
 
 # --- 2. Provision on the VM -------------------------------------------------
@@ -198,7 +206,6 @@ say "environment file present"
 step "starting the service"
 systemctl enable --quiet "${SERVICE}"
 systemctl restart "${SERVICE}"
-sleep 2
 if systemctl is-active --quiet "${SERVICE}"; then
   say "${SERVICE} is active"
 else
@@ -208,11 +215,28 @@ else
 fi
 
 # 2h. Local health check, direct and through nginx.
-step "smoke-testing /health on the VM"
-if curl -fsS --max-time 10 http://127.0.0.1:8000/health >/dev/null; then
+#
+# Poll rather than sleep-then-curl. The unit is Type=exec, so systemd reports
+# the service active the moment uvicorn is exec'd — but the app loads the ~90 MB
+# embedding model in its startup lifespan before it binds the port, which takes
+# several seconds on a cold start. A single immediate curl races that and
+# reports a false failure on a service that is fine. Give it up to ~40s.
+step "waiting for /health on 127.0.0.1:8000"
+health_ok=false
+for _ in $(seq 1 20); do
+  if curl -fsS --max-time 5 http://127.0.0.1:8000/health >/dev/null 2>&1; then
+    health_ok=true
+    break
+  fi
+  # Bail early if the service died while we were waiting.
+  systemctl is-active --quiet "${SERVICE}" || break
+  sleep 2
+done
+if [[ ${health_ok} == true ]]; then
   say "uvicorn answers on 127.0.0.1:8000"
 else
-  echo "ERROR: uvicorn did not answer /health" >&2
+  echo "ERROR: uvicorn did not answer /health within the timeout. Recent log:" >&2
+  journalctl -u "${SERVICE}" -n 30 --no-pager >&2 || true
   exit 1
 fi
 if curl -fsS --max-time 10 http://127.0.0.1/health >/dev/null; then
