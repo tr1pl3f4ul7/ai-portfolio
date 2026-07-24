@@ -42,8 +42,13 @@ sentence-transformers==3.3.1
 # never natively on the dev machine.
 sqlite-vec==0.1.9
 
-# Claude API client. Answer generation for /chat, and contact triage in 2.4.
+# Claude API client. Answer generation for /chat, and contact triage.
 anthropic==0.119.0
+
+# Backs pydantic's EmailStr on the contact form. The email address is how LJ
+# replies to an enquiry, so a malformed one is a lost opportunity rather than a
+# cosmetic problem — worth a real validator instead of a hopeful regex.
+email-validator==2.3.0
 
 # Reads backend/.env in local development. On the VM the same variables come
 # from the systemd unit and in CI from GitHub Actions secrets, so this is inert

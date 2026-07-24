@@ -883,6 +883,98 @@ value), not merely pass one through.
 
 ---
 
+## 33. Contact notifications go out through Resend over HTTPS, not SMTP
+
+**Date:** 2026-07-24
+**Status:** accepted — closes the "contact notification channel" open decision
+
+**Context:** `/contact` has to reach LJ when somebody submits the form. Step 2.4 marks the channel
+as a manual choice.
+
+**Decision:** Resend's HTTP API, `POST https://api.resend.com/emails`, called with
+`urllib.request`. One secret (`RESEND_API_KEY`), sending-only scope.
+
+**Rejected:** *Raw SMTP.* **Oracle Cloud blocks outbound 25, 465 and 587 by default** on new
+tenancies — a mail library would need a support request before it ever delivered anything, and it
+needs four secrets rather than one. *A Discord or Slack webhook.* Genuinely simpler, and it was the
+recommendation, but LJ wants this in an inbox. *An HTTP client library.* This is one POST a few
+times a day; the standard library already does it, and the VM does not need to carry a dependency
+for it.
+
+**Consequences:**
+
+- Nothing to open in `ufw` — 443 outbound is already allowed, and SMTP never enters the picture.
+- **No domain verification needed.** Resend's shared `onboarding@resend.dev` sender may only
+  deliver to the account owner's own address, and the notification goes to LJ and nobody else, so
+  that restriction is exactly the requirement. Point `CONTACT_NOTIFY_FROM` at a verified
+  `ljubenvassilev.com` address if replies should ever come *from* the domain.
+- Free tier is 3,000/month, 100/day, against a rate limit of 50 submissions/day. Comfortable.
+- Notification is best-effort: the submission is durable before the send is attempted, and a
+  failure leaves the row at `notified = 0` rather than failing the visitor's request.
+
+---
+
+## 34. A contact submission is stored before anything that can fail
+
+**Date:** 2026-07-24
+**Status:** accepted
+
+**Context:** `/contact` does three things — store, triage, notify. Two of them are network calls to
+services that will eventually be down. The ordering decides what happens to somebody's message when
+that day comes.
+
+**Decision:** Write to the store **first**, then triage, then notify. Triage and notification are
+both best-effort: they log and continue. Only a failure to store returns an error (503).
+
+**Rejected:** *Triage first, so the stored row is complete.* It makes Anthropic's availability
+decide whether LJ receives an enquiry at all. *Failing the request when notification fails.* The
+message is already saved at that point; telling the sender to try again would produce a duplicate
+and imply their first attempt vanished.
+
+**Consequences:**
+
+- Submissions live in **`data/submissions.db`, not `vectors.db`.** Decision 27 has ingestion rebuild
+  the vector store from scratch on every deploy — it is a disposable build artefact, and a
+  stranger's message is the opposite of disposable.
+- A triage failure still emails LJ, with the raw message and a subject saying triage did not run.
+- `notified = 0` is the recovery query: rows that reached the store but never reached him.
+- The store holds personal data — a real name, email and message. It stays on the VM, is gitignored,
+  and is never printed. Backing it up is a Phase 8 runbook item.
+- The sender's response body contains **only** `received` and `reference`. Returning the
+  classification would eventually tell someone they had been filed as low-priority spam.
+
+---
+
+## 35. Real credentials are removed from the test process, not just blocked at the boundary
+
+**Date:** 2026-07-24
+**Status:** accepted — written after a live leak, not before
+
+**Context:** The suite already refused to construct a real Anthropic client, which is what
+`backend/CLAUDE.md` asks for. During Step 2.4 a test reached `rag.get_client()` unmocked — a real
+bug, caught exactly as designed. But the guard raises from a function whose `kwargs` hold the API
+key, and pytest renders the locals of the frame that raised. **The genuine `ANTHROPIC_API_KEY` was
+printed to the terminal.** The outbound call was blocked and the credential leaked anyway.
+
+**Decision:** An autouse fixture replaces both keys with obvious dummies (`sk-ant-api03-TEST-KEY-NOT-REAL`,
+`re_TEST_KEY_NOT_REAL`) in `os.environ` and in every module that bound a copy at import. The
+boundary guards stay; this sits underneath them. `tests/test_guards.py` pins both properties.
+
+**Rejected:** *Suppressing pytest's locals output.* Treats the symptom, and only for pytest — the
+same key would still be in scope for anything else that renders a stack trace. *Not loading `.env`
+during tests.* `config.py` reads it at import, before any fixture runs; overriding after the fact is
+the reliable point of control.
+
+**Consequences:** A leaked value from the suite is now visibly a fake. The real lesson is more
+general and belongs in every later phase: **a guard that blocks an action is not the same as a guard
+that removes the capability.** Blocking the call out did nothing about the secret sitting in memory
+waiting for a traceback. Prefer taking the credential away over intercepting its use.
+
+The key printed during that run **must be rotated** — the fix above prevents a recurrence but does
+nothing about the value already exposed. Update this line once the old key is revoked.
+
+---
+
 ## Open decisions
 
 Not yet decided. Each will get a full entry when resolved.
@@ -891,5 +983,4 @@ Not yet decided. Each will get a full entry when resolved.
 |---|---|---|
 | **Web framework** | Step 3.1 | The plan defers to LJ's choice of design direction. The test tooling follows from it (Vitest vs Playwright). Recorded as open in `web/CLAUDE.md`. |
 | **TLS termination** | Step 5.2 | certbot on the VM, or Cloudflare edge TLS with an origin certificate in "full strict" mode. |
-| **Contact notification channel** | Step 2.4 | SMTP vs webhook, and the corresponding credentials. |
 | **Mobile store submission** | Step 6.4 | Whether Apple Developer / Google Play accounts are in scope at all. |

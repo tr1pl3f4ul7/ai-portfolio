@@ -11,10 +11,26 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel
 
-from app import rag, ratelimit
-from app.schemas import ChatRequest, ChatResponse, ErrorResponse, Source
+from app import notify, rag, ratelimit, submissions, triage
+from app.config import CONTACT_DAILY_LIMIT_PER_IP, CONTACT_DAILY_LIMIT_TOTAL
+from app.schemas import (
+    ChatRequest,
+    ChatResponse,
+    ContactRequest,
+    ContactResponse,
+    ErrorResponse,
+    Source,
+)
 
 limiter = ratelimit.DailyRateLimiter()
+
+# Separate counters, deliberately. Chat traffic must not be able to exhaust the
+# contact form — being unable to receive an opportunity is a worse outcome than
+# being unable to answer a question about one.
+contact_limiter = ratelimit.DailyRateLimiter(
+    per_ip_limit=CONTACT_DAILY_LIMIT_PER_IP,
+    total_limit=CONTACT_DAILY_LIMIT_TOTAL,
+)
 
 
 @asynccontextmanager
@@ -95,3 +111,56 @@ def chat(payload: ChatRequest, request: Request) -> ChatResponse:
         answer=answer.text,
         sources=[Source(document=r.source, section=r.heading) for r in answer.sources],
     )
+
+
+@app.post(
+    "/contact",
+    response_model=ContactResponse,
+    responses={
+        429: {"model": ErrorResponse, "description": "Daily submission limit reached"},
+        503: {"model": ErrorResponse, "description": "The submission could not be stored"},
+    },
+)
+def contact(payload: ContactRequest, request: Request) -> ContactResponse:
+    """Accept a contact submission, triage it, and tell LJ about it.
+
+    The order matters more than anything else here. The message is written to
+    the store **first**, before any network call, so that neither Claude being
+    down nor Resend being down can lose it. Both of those steps are then
+    best-effort: they log and continue rather than failing the request, because
+    a visitor who typed out a real enquiry should not be told to try again over
+    something that already succeeded from their side.
+
+    Only a failure to store is fatal — at that point there is genuinely nothing
+    holding their message, and saying so honestly beats a 200 that means nothing.
+    """
+    try:
+        contact_limiter.check_and_count(ratelimit.client_ip(request))
+    except ratelimit.RateLimited as exc:
+        raise HTTPException(
+            status_code=429,
+            detail=str(exc),
+            headers={"Retry-After": str(exc.retry_after)},
+        ) from exc
+
+    try:
+        reference = submissions.record(payload)
+    except Exception as exc:  # noqa: BLE001 - the one failure worth surfacing
+        raise HTTPException(status_code=503, detail="could not store the submission") from exc
+
+    result = None
+    try:
+        result = triage.triage(payload)
+        submissions.record_triage(reference, result)
+    except triage.TriageUnavailable as exc:
+        # LJ still gets the raw message; the email says triage did not run.
+        print(f"warning: triage failed for {reference}: {exc}")
+
+    try:
+        notify.send(reference, payload, result)
+        submissions.mark_notified(reference)
+    except notify.NotificationFailed as exc:
+        # Recoverable by hand: the row is in the store with notified = 0.
+        print(f"warning: notification failed for {reference}: {exc}")
+
+    return ContactResponse(received=True, reference=reference)

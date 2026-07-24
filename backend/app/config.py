@@ -95,3 +95,48 @@ MAX_QUESTION_CHARS = int(os.environ.get("AI_PORTFOLIO_MAX_QUESTION_CHARS", "1000
 # the numbers.
 CHAT_DAILY_LIMIT_PER_IP = int(os.environ.get("AI_PORTFOLIO_CHAT_LIMIT_PER_IP", "20"))
 CHAT_DAILY_LIMIT_TOTAL = int(os.environ.get("AI_PORTFOLIO_CHAT_LIMIT_TOTAL", "500"))
+
+# /contact gets its own counters, much tighter. A person submits a contact form
+# roughly once; twenty attempts from one address is not a person. Sharing
+# /chat's counters would let chatbot traffic exhaust LJ's ability to receive
+# mail, which is the more valuable of the two endpoints.
+CONTACT_DAILY_LIMIT_PER_IP = int(os.environ.get("AI_PORTFOLIO_CONTACT_LIMIT_PER_IP", "5"))
+CONTACT_DAILY_LIMIT_TOTAL = int(os.environ.get("AI_PORTFOLIO_CONTACT_LIMIT_TOTAL", "50"))
+
+# ---------------------------------------------------------------------------
+# Contact triage and notification
+# ---------------------------------------------------------------------------
+
+# Deliberately NOT vectors.db. Decision 27 has ingestion rebuild the vector
+# store from scratch on every deploy — it is a disposable build artefact. A
+# visitor's message is the opposite of disposable, so it lives in its own file
+# that nothing regenerates.
+SUBMISSIONS_DB_PATH = Path(
+    os.environ.get("AI_PORTFOLIO_SUBMISSIONS_DB_PATH", BACKEND_ROOT / "data" / "submissions.db")
+)
+
+# Same model as /chat. Classifying a short message and drafting a two-line reply
+# is comfortably within Haiku, and the draft is a starting point for LJ to edit
+# rather than anything sent automatically.
+TRIAGE_MODEL = os.environ.get("AI_PORTFOLIO_TRIAGE_MODEL", "claude-haiku-4-5")
+TRIAGE_MAX_TOKENS = int(os.environ.get("AI_PORTFOLIO_TRIAGE_MAX_TOKENS", "1024"))
+
+# Field ceilings for the contact form. Generous enough for a real enquiry,
+# small enough that the endpoint is not a free way to push 200 KB into a model.
+MAX_NAME_CHARS = int(os.environ.get("AI_PORTFOLIO_MAX_NAME_CHARS", "120"))
+MAX_MESSAGE_CHARS = int(os.environ.get("AI_PORTFOLIO_MAX_MESSAGE_CHARS", "5000"))
+
+# Resend, over HTTPS to api.resend.com:443 — chosen partly because Oracle Cloud
+# blocks outbound SMTP (25/465/587) by default, so a mail library would need a
+# support request before it ever sent anything. See decision 33.
+RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "")
+
+# Where the notification lands. No default: an unset recipient must fail loudly
+# rather than silently drop LJ's mail somewhere.
+CONTACT_NOTIFY_TO = os.environ.get("CONTACT_NOTIFY_TO", "")
+
+# Resend's shared sender, which may only deliver to the account owner's own
+# address. That restriction is exactly the requirement here — the notification
+# goes to LJ and nobody else — so no domain verification is needed. Point this
+# at a verified ljubenvassilev.com address if that ever changes.
+CONTACT_NOTIFY_FROM = os.environ.get("AI_PORTFOLIO_CONTACT_FROM", "onboarding@resend.dev")
