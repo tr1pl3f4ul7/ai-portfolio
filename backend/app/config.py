@@ -8,7 +8,16 @@ with and exactly one place to change a default.
 import os
 from pathlib import Path
 
+from dotenv import load_dotenv
+
 BACKEND_ROOT = Path(__file__).resolve().parent.parent
+
+# Local development only. `.env` is gitignored and holds the Anthropic key; on
+# the VM the same variables arrive from the systemd unit and in CI from GitHub
+# Actions secrets, where no .env file exists and this is a no-op. Real
+# environment variables win over the file, so the VM cannot be shadowed by a
+# stray .env that got copied there.
+load_dotenv(BACKEND_ROOT / ".env", override=False)
 
 # Source content for retrieval. Markdown files are the source of truth; the
 # vector store is a build artefact regenerated from them.
@@ -45,3 +54,44 @@ CORPUS_SUBJECT = os.environ.get("AI_PORTFOLIO_CORPUS_SUBJECT", "Ljuben Vassilev"
 # At a median 112 tokens per chunk this is roughly 670 tokens of context, which
 # is cheap next to the answer Claude generates from it.
 TOP_K = int(os.environ.get("AI_PORTFOLIO_TOP_K", "6"))
+
+# ---------------------------------------------------------------------------
+# Claude API
+# ---------------------------------------------------------------------------
+
+# Never has a default. An unset key must fail loudly at first use rather than
+# silently fall back to something.
+ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
+
+# Haiku 4.5 — LJ's call, and the right shape for this job. The answer is
+# generated from context that has already been retrieved and ranked; the model
+# is summarising supplied text, not reasoning from scratch. Haiku is a fifth the
+# price of Opus per token and noticeably faster, which matters for a chat widget
+# a visitor is waiting on. Switch to claude-sonnet-5 here if answer quality
+# disappoints — this is the only line that needs to change.
+ANTHROPIC_MODEL = os.environ.get("AI_PORTFOLIO_ANTHROPIC_MODEL", "claude-haiku-4-5")
+
+# Deliberately small. Portfolio answers should be a few short paragraphs, the
+# system prompt asks for exactly that, and a low ceiling caps the cost of a
+# runaway generation. Raise it if answers start arriving truncated.
+ANSWER_MAX_TOKENS = int(os.environ.get("AI_PORTFOLIO_ANSWER_MAX_TOKENS", "1024"))
+
+# Longest question accepted. A portfolio question is a sentence or two; anything
+# past this is either an accident or an attempt to stuff the prompt.
+MAX_QUESTION_CHARS = int(os.environ.get("AI_PORTFOLIO_MAX_QUESTION_CHARS", "1000"))
+
+# ---------------------------------------------------------------------------
+# Rate limiting
+# ---------------------------------------------------------------------------
+#
+# Two ceilings, both counted per calendar day in UTC and both reset at the same
+# instant: one per client IP, and one across every caller. The per-IP limit
+# stops a single visitor draining the budget; the total is the actual spend cap,
+# and it holds even against traffic spread across many addresses.
+#
+# UTC rather than Brisbane time so the reset is deterministic and does not move
+# with daylight saving anywhere. The consequence is that the window rolls over
+# at 10am local, not midnight — fine for a spend cap, worth knowing when reading
+# the numbers.
+CHAT_DAILY_LIMIT_PER_IP = int(os.environ.get("AI_PORTFOLIO_CHAT_LIMIT_PER_IP", "20"))
+CHAT_DAILY_LIMIT_TOTAL = int(os.environ.get("AI_PORTFOLIO_CHAT_LIMIT_TOTAL", "500"))

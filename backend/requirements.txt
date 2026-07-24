@@ -41,3 +41,12 @@ sentence-transformers==3.3.1
 # exercised in the Linux container (see backend/test/), on the VM and in CI,
 # never natively on the dev machine.
 sqlite-vec==0.1.9
+
+# Claude API client. Answer generation for /chat, and contact triage in 2.4.
+anthropic==0.119.0
+
+# Reads backend/.env in local development. On the VM the same variables come
+# from the systemd unit and in CI from GitHub Actions secrets, so this is inert
+# there — but it is a runtime dependency, not a dev one, because config.py
+# imports it unconditionally.
+python-dotenv==1.2.2

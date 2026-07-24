@@ -14,8 +14,8 @@ Two jobs:
 |---|---|---|
 | Framework | FastAPI | **Python 3.11 locally, 3.12 on the VM and in CI** — see below |
 | Vector store | `sqlite-vec` | Embedded — no separate service to run or monitor |
-| Embeddings | `sentence-transformers/all-MiniLM-L6-v2` | 384-dim, CPU-only, ARM64-friendly |
-| LLM | Anthropic Claude API | Haiku for triage (cost), Sonnet if quality demands it |
+| Embeddings | `thenlper/gte-small` | 384-dim, 512-token window, CPU-only. Chosen by benchmark over the plan's `all-MiniLM-L6-v2` — decision 28 |
+| LLM | Anthropic Claude API | `claude-haiku-4-5` for both `/chat` and triage — decision 30. Sonnet 5 if quality demands it |
 | Errors | `sentry-sdk` FastAPI integration | Phase 2.5 |
 | Tests | `pytest` + `TestClient` | |
 | Process | systemd unit → uvicorn | See `infra/systemd/` |

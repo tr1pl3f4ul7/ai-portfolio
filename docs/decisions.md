@@ -792,6 +792,97 @@ doing now" and "the most challenging thing he has built" each return the correct
 
 ---
 
+## 30. Claude Haiku 4.5 generates `/chat` answers
+
+**Date:** 2026-07-24
+**Status:** accepted
+
+**Context:** `/chat` needs a model to turn retrieved chunks into an answer. Every request costs
+money, and a visitor is watching a chat widget spin while it happens.
+
+**Decision:** `claude-haiku-4-5`, LJ's call. The model is summarising text that retrieval has
+already found and ranked — it is not reasoning from scratch — and Haiku is roughly a fifth of
+Opus's per-token price and noticeably faster.
+
+**Rejected:** *Opus 4.8* — more capability than the task needs, at five times the cost per token,
+on the highest-volume endpoint in the project. *Sonnet 5* — the fallback if Haiku's answers
+disappoint, not the starting point.
+
+**Consequences:** Answer quality now depends more heavily on retrieval and on the system prompt
+than it would with a larger model; the grounding rules in `app/rag.py` are doing real work. The
+model is a single line in `app/config.py` (`ANTHROPIC_MODEL`) and overridable by environment
+variable, so switching to Sonnet is a config change rather than a code change. A test pins the
+current value so the choice cannot drift silently — changing the model means consciously changing
+the bill.
+
+Haiku 4.5 predates adaptive thinking, so no `thinking` parameter is sent. That is correct for this
+workload anyway: the answer is a summary of supplied context, not a reasoning problem.
+
+---
+
+## 31. Rate limiting: two daily ceilings, counted in memory
+
+**Date:** 2026-07-24
+**Status:** accepted
+
+**Context:** `/chat` is a public endpoint that spends money at the Claude API on every request. It
+needs a spend cap. LJ's instruction was to keep it simple: limit by IP in the backend, and per
+calendar day regardless of IP.
+
+**Decision:** Two counters, both keyed on the **UTC calendar date** and both reset at the same
+instant — one per client IP (default 20/day), one across all callers (default 500/day). The global
+counter is checked first. Both are held in a plain dict in the process, behind one lock, with
+check-and-increment as a single operation.
+
+**Rejected:** *A rolling window per IP plus a daily global cap.* Two different time semantics in
+one limiter, for no gain at this traffic level — and precisely the mixing LJ asked to avoid.
+*Redis or SQLite-backed counters.* Durable across restarts, but a whole storage dependency on a
+12 GB box to protect against losing a few requests' worth of budget after a deploy.
+*Rate limiting at the Cloudflare Worker (Phase 4).* The edge cannot see requests that reach the VM
+directly, so the backend is where the cap actually holds.
+
+**Consequences:**
+
+- **One uvicorn worker is now load-bearing.** Adding workers to the systemd unit would give each
+  its own counters and silently multiply both limits. Noted in `app/ratelimit.py` and to be noted
+  again in the unit file at Step 2.6.
+- Counters reset on restart, so a deploy grants a fresh budget. Cheap, and the alternative costs a
+  dependency.
+- The window rolls over at 10am Brisbane time rather than local midnight. UTC keeps the reset
+  deterministic and independent of daylight saving anywhere; for a spend cap the boundary's
+  wall-clock position does not matter, but it is worth knowing when reading the numbers.
+- A 429 carries `Retry-After` in seconds until the next reset, and names which of the two limits
+  was hit, so the web widget can say something more useful than "try again later".
+
+---
+
+## 32. Client IP is taken from `X-Real-IP`, or the **rightmost** `X-Forwarded-For`
+
+**Date:** 2026-07-24
+**Status:** accepted
+
+**Context:** Behind nginx every request arrives from `127.0.0.1`, so the per-IP limit in decision 31
+needs the real client address — and it must come from a header a visitor cannot forge, or the limit
+is decorative.
+
+**Decision:** Prefer `X-Real-IP`. Fall back to the **rightmost** entry of `X-Forwarded-For`, then to
+the socket address.
+
+**Rejected:** *The leftmost `X-Forwarded-For` entry* — the conventional reading, and wrong here. A
+client can send its own `X-Forwarded-For`, and nginx's `$proxy_add_x_forwarded_for` **appends** the
+real peer to whatever arrived. The leftmost value is therefore attacker-controlled and the per-IP
+limit could be bypassed by rotating a fake header; the rightmost is the entry our own proxy wrote.
+
+**Consequences:** The reasoning holds only for **exactly one trusted proxy** in front of the
+backend. Adding a second (Cloudflare in front of nginx, at Phase 5) means the rightmost entry
+becomes Cloudflare's edge address, and the correct entry moves one position left — `X-Real-IP`
+would then need to carry `CF-Connecting-IP`. Re-check this at Step 5.2.
+
+The nginx config at Step 2.6 must **set** `X-Real-IP` from `$remote_addr` (overwriting any inbound
+value), not merely pass one through.
+
+---
+
 ## Open decisions
 
 Not yet decided. Each will get a full entry when resolved.
