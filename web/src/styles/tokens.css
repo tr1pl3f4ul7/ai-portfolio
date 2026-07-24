@@ -1,0 +1,57 @@
+/* GENERATED FROM design/tokens.json — DO NOT EDIT. Run: python design/generate.py */
+
+/* Dark only, deliberately. The terminal register commits to one visual
+   world; a light variant would be a different design, not a translation. */
+:root {
+  /* --- color --- */
+  --color-ground: #0C1013;
+  --color-surface: #12181C;
+  --color-surface-alt: #171F24;
+  --color-line: #232C32;
+  --color-line-soft: #1A2227;
+  --color-ink: #DCE3E6;
+  --color-ink-dim: #83949C;
+  --color-ink-faint: #566670;
+  --color-signal: #4FD1C5;
+  --color-layer-browser: #4FD1C5;
+  --color-layer-edge: #63B3ED;
+  --color-layer-server: #F2A65A;
+  --color-layer-cloud: #E2725B;
+  --color-ok: #6EE7B7;
+  --color-warn: #FBBF24;
+  --color-danger: #F87171;
+
+  /* --- font --- */
+  --font-mono: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, 'Cascadia Mono', monospace;
+  --font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+
+  /* --- size --- */
+  --size-s-1: 0.8125rem;
+  --size-s0: 1rem;
+  --size-s1: 1.1875rem;
+  --size-s2: 1.5rem;
+  --size-s3: 2.125rem;
+  --size-s4: 3rem;
+
+  /* --- space --- */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-7: 3rem;
+  --space-8: 4.5rem;
+
+  /* --- motion --- */
+  --motion-fast: 120ms;
+  --motion-base: 200ms;
+  --motion-easing: cubic-bezier(0.2, 0, 0, 1);
+
+  /* --- radius --- */
+  --radius-sharp: 3px;
+
+  /* --- tracking --- */
+  --tracking-display: -0.035em;
+  --tracking-label: 0.14em;
+}

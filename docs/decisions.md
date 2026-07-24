@@ -1086,12 +1086,108 @@ the VM or locally.
 
 ---
 
+## 39. Visual direction: terminal-native, dark only
+
+**Date:** 2026-07-25
+**Status:** accepted — closes Step 3.1
+
+**Context:** Step 3.1 asks for a visual direction before any building. The goals: be memorable,
+don't blend in, and keep text short ("smart brevity"). A further question worth settling early was
+how far the site should signal its Anthropic-ecosystem affinity visually, given that much of the
+intended audience uses these tools daily.
+
+**Decision:** Terminal-native — dark ground (`#0C1013`, near-black with a blue-green bias),
+lowercase monospace headings, one teal accent, and **the four-layer inference trace as the hero**.
+The page opens by *showing* the architecture running, annotated with where each layer executed and
+what it cost, rather than describing it in prose. Dark only.
+
+**Rejected:**
+
+- *Mirroring the Claude desktop app's palette and feel* — considered as the most direct way to
+  signal ecosystem affinity, and dropped on three counts. It fights the technical register (that
+  identity is warm, soft and editorial). It edges into trade-dress territory, since designing so
+  users read a site as an Anthropic product implies an affiliation that does not exist. And
+  decisively: warm cream `#F4F1EA` with a serif display and terracotta accent is what current LLMs
+  produce **by default** when asked to design anything — so the most ecosystem-native-looking
+  option is also the most generic one available.
+
+  The underlying aim survived by targeting the right tool. The daily driver here is **Claude
+  Code**, which is a terminal — so terminal DNA delivers the affinity, the technical register,
+  distinctiveness and brevity at once, with no visual confusion with anyone's product.
+
+- *Acid-green-on-black* — terminal costume, and the default skin of every other engineer's
+  portfolio.
+
+- *A light theme alongside dark* — the register commits to one visual world, and a light variant
+  would be a different design rather than a translation of this one.
+
+**Consequences:** The palette must do work, not decorate: cool = runs near the visitor, warm = runs
+on LJ's infrastructure (see `docs/design-system.md`). The trace is the whole bet — if it does not
+land, the page has no hero. Every number in it must be **real and measured at request time**;
+faking a latency would make the site a lie about the thing it exists to demonstrate.
+
+---
+
+## 40. Web: Vite + vanilla TypeScript, tested with Vitest
+
+**Date:** 2026-07-25
+**Status:** accepted — closes the "web framework" open decision
+
+**Context:** The plan says "HTML/CSS/JS (or lightweight framework)" and defers the choice to Step
+3.1, because the test tooling follows from it. `web/CLAUDE.md` forbade picking unilaterally.
+
+**Decision:** Vite with vanilla TypeScript. No component framework. **Vitest** for component and
+interaction tests, plus the manual cross-browser check the plan already requires for WebLLM.
+
+**Rejected:** *Astro* — genuinely the best fit on paper for a static page with interactive islands,
+but its routing and content-collection strengths are irrelevant to a single page, and it is another
+dependency to justify. *SvelteKit / Next.js* — far more than a one-pager needs. *No build step at
+all* — loses TypeScript, and WebLLM plus a chat widget is enough state to want type safety.
+
+**Consequences:** The decisive argument is already a rule in `web/CLAUDE.md`: *"Model download is
+the UX problem… keep the page fast without the model loaded."* WebLLM pulls hundreds of megabytes,
+so every kilobyte of framework JavaScript competes with the one download that actually matters.
+Three small islands — chat widget, summariser, contact form — do not justify that cost.
+
+Vitest is Vite-native, so testing needs no extra configuration. If the page later grows past what
+vanilla TS handles comfortably, revisit this rather than bolting a framework on top.
+
+---
+
+## 41. Design tokens are generated into both clients, never hand-written
+
+**Date:** 2026-07-25
+**Status:** accepted
+
+**Context:** LJ asked for a shared design system so the web page and the Flutter app look like one
+product. The two clients cannot read each other's formats — CSS custom properties mean nothing to
+Dart.
+
+**Decision:** `design/tokens.json` is the single source of truth. `python design/generate.py`
+emits `web/src/styles/tokens.css` now, and `mobile/lib/theme/tokens.dart` from Phase 6 onwards
+(the Dart target is skipped until `mobile/lib/` exists, so nothing is pre-created for an unreached
+phase). Both outputs are committed and neither is ever hand-edited. `--check` fails when they are
+stale, ready to wire into CI at Phase 7.
+
+**Rejected:** *An external design tool* (Figma, Penpot) as the source of truth — an account, a
+manual export on every change, and a source of truth living outside version control. *Hand-mirrored
+values with a "keep these in sync" comment* — which is exactly what the `api-contract` skill exists
+to prevent for the API, and design drift is worse because it is **silent**: nothing fails, the two
+clients simply stop looking like one product.
+
+**Consequences:** Changing a colour is now: edit the JSON, regenerate, commit both files. A
+generated file edited by hand is reverted on the next run, which is the intended behaviour. This
+adds a small Python step to a JavaScript and Dart workflow — acceptable, since Python is already
+the repo's scripting language and the alternative is a Node dependency that exists only to move
+twenty values around.
+
+---
+
 ## Open decisions
 
 Not yet decided. Each will get a full entry when resolved.
 
 | Decision | Blocked on | Notes |
 |---|---|---|
-| **Web framework** | Step 3.1 | The plan defers to LJ's choice of design direction. The test tooling follows from it (Vitest vs Playwright). Recorded as open in `web/CLAUDE.md`. |
 | **TLS termination** | Step 5.2 | certbot on the VM, or Cloudflare edge TLS with an origin certificate in "full strict" mode. |
 | **Mobile store submission** | Step 6.4 | Whether Apple Developer / Google Play accounts are in scope at all. |

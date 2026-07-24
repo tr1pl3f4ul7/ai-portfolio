@@ -9,23 +9,35 @@ Three interactive pieces:
 2. **Chat widget** → `POST /chat` on the backend (RAG).
 3. **Contact form** → the Cloudflare Worker, which pre-filters and forwards to `/contact`.
 
-## ⚠️ Framework is NOT chosen yet
-
-The plan says "HTML/CSS/JS (or lightweight framework)" and defers the decision to **Step 3.1**,
-where LJ picks a design direction. The test tooling follows from it — "Playwright or Vitest
-depending on framework chosen."
-
-**Do not pick a framework unilaterally.** Until Step 3.1 is confirmed, this is an open decision.
-Record the outcome in `docs/decisions.md` when it's made.
-
-## What *is* fixed
+## Stack
 
 | Concern | Choice |
 |---|---|
+| Build | **Vite + vanilla TypeScript** — no component framework (decision 40) |
+| Tests | **Vitest** (Vite-native) + a manual cross-browser check |
+| Styling | Plain CSS using the generated tokens — see below |
 | On-device model | WebLLM — Llama-3.2-1B-Instruct or Qwen2.5-0.5B-Instruct (MLC quantised) |
 | Errors | Sentry browser SDK |
 | Analytics | PostHog JS — autocapture + explicit events |
 | Deploy | GitHub Pages or Cloudflare Pages, via `web-deploy.yml` |
+
+**Why no framework:** one page, three small interactive islands, no routing. The binding
+constraint is the model download below — every kilobyte of framework JS competes with it.
+
+## ⚠️ Never hand-edit `src/styles/tokens.css`
+
+It is **generated** from `design/tokens.json`, which is shared with the Flutter app so both clients
+stay one visual system. Edit the JSON, then:
+
+```bash
+python design/generate.py
+```
+
+Commit the source and the generated file together. Full guidance — palette logic, type roles,
+motion ceiling — is in [`docs/design-system.md`](../docs/design-system.md).
+
+**No hardcoded hex values, sizes or durations in this directory.** If a value is missing, add it to
+`tokens.json`.
 
 PostHog events to fire explicitly (beyond autocapture): **form submitted**, **chat used**,
 **summariser used**.

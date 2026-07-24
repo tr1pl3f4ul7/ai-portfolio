@@ -162,8 +162,13 @@ footprint, flag it.
 | `backend/` | FastAPI: RAG chatbot + contact triage | 2 |
 | `edge/` | Cloudflare Worker pre-filter | 4 |
 | `infra/` | `setup.sh`, nginx config, systemd units | 1 |
-| `docs/` | architecture, decision log, runbook | 8 |
+| `design/` | `tokens.json` — the visual contract shared by `web/` and `mobile/` | 3 |
+| `docs/` | architecture, decision log, runbook, design system | 8 |
 | `.github/workflows/` | Path-filtered CI/CD to four targets | 7 |
+
+**`design/tokens.json` is generated into both clients.** Never hand-edit
+`web/src/styles/tokens.css` or `mobile/lib/theme/tokens.dart` — edit the JSON and run
+`python design/generate.py`. See `docs/design-system.md`.
 
 Empty directories currently hold `.gitkeep`. Real contents arrive in the owning phase — **don't
 pre-create files for a phase you haven't reached.**
