@@ -66,7 +66,28 @@ def test_system_prompt_forbids_answering_beyond_the_context():
     assert "only from the context" in prompt
     assert "never guess" in prompt
     assert "contact form" in prompt
-    assert "third person" in prompt
+
+
+def test_system_prompt_answers_in_the_first_person():
+    """LJ's call: the chat replies as him, not as a narrator describing him."""
+    prompt = rag.SYSTEM_PROMPT.lower()
+    assert "first person" in prompt
+    assert '"i built"' in prompt
+
+
+def test_system_prompt_stays_honest_about_being_an_ai():
+    """First person is a voice, not a disguise. Asked directly, it must not lie."""
+    prompt = rag.SYSTEM_PROMPT.lower()
+    assert "human, a bot or an ai" in prompt
+    assert "typing in real time" in prompt
+    assert "not a disguise" in prompt
+
+
+def test_system_prompt_forbids_markdown():
+    """Observed live: the model bolded proper nouns and visitors saw asterisks."""
+    prompt = rag.SYSTEM_PROMPT.lower()
+    assert "no markdown" in prompt
+    assert "no asterisks" in prompt
 
 
 def test_system_prompt_treats_input_as_data_not_instructions():

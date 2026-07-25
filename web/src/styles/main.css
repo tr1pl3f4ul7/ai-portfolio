@@ -450,6 +450,14 @@ a {
   padding-top: var(--space-3);
 }
 
+.work-meta {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--color-ink-faint);
+}
+
 .work-name {
   font-family: var(--font-mono);
   font-size: var(--size-s0);
@@ -524,33 +532,4 @@ a {
   padding-top: var(--space-4);
 }
 
-/* --- reveal ---------------------------------------------------------- */
-
-[data-reveal] {
-  opacity: 0;
-  transform: translateY(0.75rem);
-  transition:
-    opacity var(--motion-base) var(--motion-easing),
-    transform var(--motion-base) var(--motion-easing);
-}
-
-[data-reveal].is-revealed {
-  opacity: 1;
-  transform: none;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-  }
-
-  /* Never leave a reveal stuck invisible if the observer never runs. */
-  [data-reveal] {
-    opacity: 1;
-    transform: none;
-  }
-}
+/* All motion lives in motion.css, loaded after this file. */

@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import pytest
 
-from app import config, notify, rag
+from app import config, notify, observability, rag
 from tests.conftest import DUMMY_ANTHROPIC_KEY, DUMMY_RESEND_KEY, LiveApiCallAttempted
 
 
@@ -51,6 +51,21 @@ def test_the_dummies_are_unmistakably_not_credentials():
 
 def test_the_notification_recipient_is_not_a_real_address():
     assert notify.CONTACT_NOTIFY_TO.endswith("@example.com")
+
+
+def test_sentry_is_disabled_during_tests():
+    """Observed: the suite was posting test exceptions to the live project.
+
+    init_sentry() runs at import time, so an empty DSN has to be in the
+    environment before `app` is imported at all — see the module-level block in
+    conftest, which no fixture can substitute for.
+    """
+    import os
+
+    assert os.environ["SENTRY_DSN"] == ""
+    assert config.SENTRY_DSN == ""
+    assert observability.SENTRY_DSN == ""
+    assert observability.init_sentry() is False
 
 
 # --- 2. No calls go out -----------------------------------------------------

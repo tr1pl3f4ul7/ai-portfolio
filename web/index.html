@@ -14,18 +14,25 @@
 
     <link rel="stylesheet" href="/src/styles/tokens.css" />
     <link rel="stylesheet" href="/src/styles/main.css" />
+    <link rel="stylesheet" href="/src/styles/motion.css" />
   </head>
 
   <body>
+    <!-- Scroll position, as a hairline. Driven entirely by CSS off the document
+         scroll timeline — no listener, no JS. -->
+    <div class="scroll-rail" aria-hidden="true"></div>
+
     <main class="page">
       <!-- ================= HERO ================= -->
       <header class="hero">
-        <p class="label">brisbane, australia</p>
-        <h1 class="display">ljuben vassilev</h1>
-        <p class="lede">
-          Mobile engineer, ten years. I build AI systems that run in four
-          different places — including this page.
-        </p>
+        <div class="hero-intro">
+          <p class="label">brisbane, australia</p>
+          <h1 class="display">ljuben vassilev</h1>
+          <p class="lede">
+            Mobile engineer, ten years. I build AI systems that run in four
+            different places — including this page.
+          </p>
+        </div>
 
         <!-- The thesis, as a component. Timings fill in as you use the page;
              nothing here is a stand-in for a number we haven't measured. -->
@@ -88,6 +95,7 @@
 
         <ol class="work">
           <li class="work-item">
+            <p class="work-meta">propertyme · 2022–2026</p>
             <h3 class="work-name">PropertyMe</h3>
             <p class="work-note">
               Flutter apps for property owners, tenants and managers. Two audiences,
@@ -95,6 +103,7 @@
             </p>
           </li>
           <li class="work-item">
+            <p class="work-meta">ozone.bg · 2019</p>
             <h3 class="work-name">Ozone Warehouse</h3>
             <p class="work-note">
               Android on industrial barcode scanners — kiosk mode, self-updating,
@@ -103,6 +112,16 @@
             </p>
           </li>
           <li class="work-item">
+            <p class="work-meta">musala soft · 2019</p>
+            <h3 class="work-name">Montblanc Hub</h3>
+            <p class="work-note">
+              Companion app for Montblanc's smart writing set. Added support for a
+              graphic tablet that was still in the hardware workshop, and moved it
+              from A5 to A4.
+            </p>
+          </li>
+          <li class="work-item">
+            <p class="work-meta">solvedout · 2017</p>
             <h3 class="work-name">Hellboy VR</h3>
             <p class="work-note">
               Dual 8K stereoscopic video on phone-driven headsets, for Lions Gate.
@@ -110,13 +129,7 @@
             </p>
           </li>
           <li class="work-item">
-            <h3 class="work-name">Montblanc Hub</h3>
-            <p class="work-note">
-              Companion app for a smart writing set, built against a graphic tablet
-              that was still in the hardware workshop.
-            </p>
-          </li>
-          <li class="work-item">
+            <p class="work-meta">allterco · 2016–2017</p>
             <h3 class="work-name">Neonatal monitoring</h3>
             <p class="work-note">
               Tablet app reading pulse oximeters for newborns over Bluetooth Low
@@ -124,6 +137,7 @@
             </p>
           </li>
           <li class="work-item">
+            <p class="work-meta">allterco · 2017</p>
             <h3 class="work-name">MyKi</h3>
             <p class="work-note">
               Children's smartwatch companion — and the games running on the watch

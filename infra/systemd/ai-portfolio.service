@@ -7,6 +7,16 @@ Documentation=https://github.com/tr1pl3f4ul7/ai-portfolio
 After=network-online.target
 Wants=network-online.target
 
+# These belong in [Unit], NOT [Service] — systemd parses them here and silently
+# ignores them there ("Unknown key name ... in section 'Service'"), which means
+# a version of this file with them under [Service] has no start-limit
+# protection at all while looking like it does.
+#
+# Five failed starts inside a minute stops the retries and leaves the unit
+# failed for an operator, rather than crash-looping and filling the journal.
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
 [Service]
 Type=exec
 
@@ -39,10 +49,6 @@ ExecStart=/opt/ai-portfolio/venv/bin/uvicorn app.main:app \
 
 Restart=always
 RestartSec=3
-# If it crashes five times inside a minute, stop trying and leave it failed for
-# an operator to look at, rather than crash-looping and filling the journal.
-StartLimitIntervalSec=60
-StartLimitBurst=5
 
 # --- Hardening --------------------------------------------------------------
 # Least privilege for a process that parses untrusted input from the internet.

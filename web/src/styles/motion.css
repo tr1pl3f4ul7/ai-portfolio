@@ -1,0 +1,229 @@
+/* Motion.
+ *
+ * Scroll-LINKED, not scroll-triggered: position in the document drives the
+ * animation directly, so content moves continuously as you scroll rather than
+ * snapping once on entry.
+ *
+ * Built on CSS scroll-driven animations (`animation-timeline`). The browser
+ * runs these off the main thread — no scroll listener, no layout thrash, and
+ * nothing to hydrate. Browsers without support fall back to a one-shot
+ * IntersectionObserver reveal (see src/reveal.ts), which only arms itself when
+ * the CSS path is unavailable.
+ *
+ * Three rules from docs/design-system.md hold throughout:
+ *   - decelerating easing, never bouncy — no overshoot, no spring
+ *   - `--motion-base` (200ms) is the ceiling for anything time-based
+ *   - every bit of it is off under prefers-reduced-motion
+ *
+ * Nothing here is ever the only thing making content visible: the default state
+ * is visible, and the animations only apply where a reveal is guaranteed to
+ * run. A browser that supports none of this shows a complete, static page.
+ */
+
+/* --- scroll progress rail --------------------------------------------- */
+
+.scroll-rail {
+  position: fixed;
+  inset: 0 0 auto 0;
+  height: 2px;
+  background: var(--color-signal);
+  transform: scaleX(0);
+  transform-origin: 0 50%;
+  z-index: 10;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  @supports (animation-timeline: scroll()) {
+    .scroll-rail {
+      animation: rail-advance linear both;
+      /* The document's own scroll, not an element's. */
+      animation-timeline: scroll(root block);
+    }
+  }
+}
+
+@keyframes rail-advance {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+/* --- everything below only runs when motion is welcome ----------------- */
+
+@media (prefers-reduced-motion: no-preference) {
+  /* ---------- scroll-linked path (modern browsers) ---------- */
+  @supports (animation-timeline: view()) {
+    /* Sections rise into place as they enter, finishing well before centre so
+       the page never feels like it is catching up with the scroll. */
+    [data-reveal] {
+      animation: rise linear both;
+      animation-timeline: view();
+      animation-range: entry 0% entry 55%;
+    }
+
+    /* The hero recedes as you leave it: drifts up, dims, settles back. Gives
+       the page depth without a parallax library. */
+    .hero-intro {
+      animation: recede linear both;
+      animation-timeline: view();
+      animation-range: exit 0% exit 100%;
+    }
+
+    /* The trace lifts at a different rate to the text above it — the two move
+       independently, which is what reads as depth. */
+    .hero .trace {
+      animation: lift linear both;
+      animation-timeline: view();
+      animation-range: exit 0% exit 100%;
+    }
+
+    /* Trace rows cascade in from the left. Each row has its own view timeline,
+       so the stagger comes from their real positions rather than a delay. */
+    .trace-row {
+      animation: slide-in linear both;
+      animation-timeline: view();
+      animation-range: entry 10% entry 70%;
+    }
+
+    /* Section headings lead their labels by a hair. */
+    .section-head .label {
+      animation: slide-in linear both;
+      animation-timeline: view();
+      animation-range: entry 0% entry 45%;
+    }
+    .section-head .heading {
+      animation: slide-in linear both;
+      animation-timeline: view();
+      animation-range: entry 8% entry 60%;
+    }
+
+    /* Work cards rise as they enter, then keep drifting while in view. Columns
+       are offset so the grid moves as several planes rather than one slab —
+       this is the "content moves as you scroll" effect, and the offsets are
+       small on purpose. Too much and it reads as broken rather than deliberate. */
+    .work-item {
+      animation:
+        rise linear both,
+        drift linear both;
+      animation-timeline: view(), view();
+      animation-range:
+        entry 0% entry 50%,
+        entry 25% exit 100%;
+    }
+    .work-item:nth-child(3n + 2) {
+      animation-range:
+        entry 0% entry 58%,
+        entry 25% exit 100%;
+      --drift-distance: -1.6rem;
+    }
+    .work-item:nth-child(3n + 3) {
+      animation-range:
+        entry 0% entry 66%,
+        entry 25% exit 100%;
+      --drift-distance: -0.7rem;
+    }
+
+    /* The footer is the last thing; let it arrive rather than appear. */
+    .footer {
+      animation: rise linear both;
+      animation-timeline: view();
+      animation-range: entry 0% entry 80%;
+    }
+  }
+
+  /* ---------- fallback path (no scroll-driven animation) ----------
+     reveal.ts adds `js-reveals` to <html> ONLY when it is taking over, so this
+     never hides anything that has nothing to un-hide it. */
+  .js-reveals [data-reveal] {
+    opacity: 0;
+    transform: translateY(0.75rem);
+    transition:
+      opacity var(--motion-base) var(--motion-easing),
+      transform var(--motion-base) var(--motion-easing);
+  }
+
+  .js-reveals [data-reveal].is-revealed {
+    opacity: 1;
+    transform: none;
+  }
+
+  /* A new answer arriving should register as an event. */
+  .chat-exchange {
+    animation: rise var(--motion-base) var(--motion-easing) both;
+  }
+}
+
+/* --- keyframes --------------------------------------------------------- */
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(1.25rem);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(-0.75rem);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes recede {
+  to {
+    opacity: 0.25;
+    transform: translateY(-2.5rem);
+  }
+}
+
+@keyframes lift {
+  to {
+    opacity: 0.4;
+    transform: translateY(-1rem);
+  }
+}
+
+@keyframes drift {
+  to {
+    transform: translateY(var(--drift-distance, -2.4rem));
+  }
+}
+
+/* --- reduced motion: everything off, nothing hidden -------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .scroll-rail {
+    display: none;
+  }
+
+  [data-reveal],
+  .work-item,
+  .trace-row,
+  .hero-intro,
+  .hero .trace,
+  .footer {
+    opacity: 1;
+    transform: none;
+  }
+}

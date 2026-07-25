@@ -79,12 +79,30 @@ inference trace.
 
 ## Motion
 
-One orchestrated moment beats scattered effects.
+Two kinds, with different rules.
+
+**Time-based** — anything triggered by an event: a hover, a focus ring, an answer arriving.
 
 - **`--motion-base` (200ms) is a ceiling.** Nothing on this site eases longer.
 - **`--motion-easing` is decelerating** — precise, never bouncy. No overshoot, no spring.
-- The inference trace runs **once** on load, top to bottom: a request moving through four layers.
-- Answers stream token by token. Retrieved sources disclose the way a tool call does.
+
+**Scroll-linked** — content that moves *with* the scroll rather than snapping once on entry. The
+duration ceiling does not apply, because there is no duration: scroll position is the timeline.
+What replaces it is restraint in distance.
+
+- Built on CSS `animation-timeline` (`view()` / `scroll()`), so the browser runs it off the main
+  thread. No scroll listener, nothing to hydrate, no layout thrash.
+- **Drift distances stay under ~2.5rem.** Enough to read as depth, not enough to read as broken.
+- Elements on the same screen move at *different* rates — that difference is the effect. Moving
+  everything together is just scrolling.
+- Stagger comes from each element's own position in the viewport, not from hand-tuned delays.
+
+`web/src/styles/motion.css` holds all of it; `main.css` holds none.
+
+**The fallback must never hide content.** The scroll-linked CSS is the primary path; browsers
+without it get a one-shot IntersectionObserver reveal, and that fallback's CSS is armed by a class
+`reveal.ts` adds *only* when an observer is definitely going to run. A browser supporting neither
+shows a complete, static page rather than a blank one.
 
 Every animation sits behind `prefers-reduced-motion`. Non-negotiable — it is already a rule in
 `web/CLAUDE.md`.

@@ -218,12 +218,17 @@ fi
 #
 # Poll rather than sleep-then-curl. The unit is Type=exec, so systemd reports
 # the service active the moment uvicorn is exec'd — but the app loads the ~90 MB
-# embedding model in its startup lifespan before it binds the port, which takes
-# several seconds on a cold start. A single immediate curl races that and
-# reports a false failure on a service that is fine. Give it up to ~40s.
-step "waiting for /health on 127.0.0.1:8000"
+# embedding model in its startup lifespan before it binds the port. A single
+# immediate curl races that and reports a false failure on a service that is
+# fine.
+#
+# The budget is generous on purpose: measured at 69s on the Ampere A1 with a
+# cold page cache, against an earlier 40s ceiling that failed the deploy while
+# the service was still starting correctly. Warm restarts take a few seconds;
+# this only costs wall-clock when something is genuinely wrong.
+step "waiting for /health on 127.0.0.1:8000 (model load can take ~70s cold)"
 health_ok=false
-for _ in $(seq 1 20); do
+for _ in $(seq 1 90); do
   if curl -fsS --max-time 5 http://127.0.0.1:8000/health >/dev/null 2>&1; then
     health_ok=true
     break
