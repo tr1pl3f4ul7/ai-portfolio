@@ -18,6 +18,8 @@
     "vitest": "^4.1.10"
   },
   "dependencies": {
-    "@huggingface/transformers": "^4.2.0"
+    "@huggingface/transformers": "^4.2.0",
+    "@sentry/browser": "^10.68.0",
+    "posthog-js": "^1.407.2"
   }
 }

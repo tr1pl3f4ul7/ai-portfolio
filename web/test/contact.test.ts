@@ -104,6 +104,18 @@ describe("submitting", () => {
     expect(status().classList.contains("is-sent")).toBe(true);
   });
 
+  it("calls onSubmitted once the backend confirms, for analytics", async () => {
+    submitContact.mockResolvedValue({ received: true, reference: "abc" });
+    const onSubmitted = vi.fn();
+    mountContact(root, { onSubmitted });
+
+    fill(VALID);
+    submit();
+
+    await vi.waitFor(() => expect(status().hidden).toBe(false));
+    expect(onSubmitted).toHaveBeenCalledOnce();
+  });
+
   it("clears the form after a successful send", async () => {
     submitContact.mockResolvedValue({ received: true, reference: "abc" });
 

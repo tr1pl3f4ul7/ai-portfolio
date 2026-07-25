@@ -71,7 +71,12 @@ function field(
   return { wrap, error };
 }
 
-export function mountContact(root: HTMLElement): void {
+export interface ContactOptions {
+  /** Called once the backend confirms the submission, for analytics. */
+  onSubmitted?: () => void;
+}
+
+export function mountContact(root: HTMLElement, options: ContactOptions = {}): void {
   root.replaceChildren();
 
   const form = document.createElement("form");
@@ -160,6 +165,7 @@ export function mountContact(root: HTMLElement): void {
         status.textContent = `Sent. Reference ${response.reference} — I'll come back to you.`;
         status.classList.add("is-sent");
         status.hidden = false;
+        options.onSubmitted?.();
       })
       .catch((error: unknown) => {
         status.textContent = error instanceof ApiError ? error.message : "Something went wrong.";
