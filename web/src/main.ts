@@ -8,7 +8,7 @@
 
 import { mountChat } from "./chat";
 import { mountContact } from "./contact";
-import { mountReveals } from "./reveal";
+import { mountMotion } from "./motion";
 
 /**
  * Show a real measurement on the layers that just did the work.
@@ -33,4 +33,4 @@ if (chat) mountChat(chat, { onAnswered: recordRoundTrip });
 const contact = document.querySelector<HTMLElement>("#contact");
 if (contact) mountContact(contact);
 
-mountReveals();
+mountMotion();

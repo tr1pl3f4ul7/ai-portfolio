@@ -1,23 +1,19 @@
 /* Motion.
  *
- * Scroll-LINKED, not scroll-triggered: position in the document drives the
- * animation directly, so content moves continuously as you scroll rather than
- * snapping once on entry.
+ * Two layers, with different jobs:
  *
- * Built on CSS scroll-driven animations (`animation-timeline`). The browser
- * runs these off the main thread — no scroll listener, no layout thrash, and
- * nothing to hydrate. Browsers without support fall back to a one-shot
- * IntersectionObserver reveal (see src/reveal.ts), which only arms itself when
- * the CSS path is unavailable.
+ *   1. ENTRANCES — class-toggled by src/motion.ts, transitioned by CSS. These
+ *      carry the visible movement: things travel --travel-rise (3.5rem) rather
+ *      than the 1.25rem the first attempt used, which was too small to read as
+ *      motion at all.
+ *   2. PARALLAX — CSS scroll-timeline, continuous, running off the main thread.
+ *      Layered on elements that do NOT also have an entrance transition, since
+ *      an animation and a transition on the same property will fight.
  *
- * Three rules from docs/design-system.md hold throughout:
- *   - decelerating easing, never bouncy — no overshoot, no spring
- *   - `--motion-base` (200ms) is the ceiling for anything time-based
- *   - every bit of it is off under prefers-reduced-motion
- *
- * Nothing here is ever the only thing making content visible: the default state
- * is visible, and the animations only apply where a reveal is guaranteed to
- * run. A browser that supports none of this shows a complete, static page.
+ * Nothing here is ever the only thing making content visible: the hidden state
+ * lives behind `.js-motion`, a class motion.ts adds only once an observer is
+ * guaranteed to run. No JS, no IntersectionObserver, or reduced motion — the
+ * page renders complete and static.
  */
 
 /* --- scroll progress rail --------------------------------------------- */
@@ -37,7 +33,6 @@
   @supports (animation-timeline: scroll()) {
     .scroll-rail {
       animation: rail-advance linear both;
-      /* The document's own scroll, not an element's. */
       animation-timeline: scroll(root block);
     }
   }
@@ -52,156 +47,167 @@
   }
 }
 
-/* --- everything below only runs when motion is welcome ----------------- */
+/* --- split-word masks -------------------------------------------------- */
+/* Always applied, so the mask geometry is stable whether or not it animates. */
+
+.mask {
+  display: inline-block;
+  overflow: hidden;
+  vertical-align: bottom;
+  /* Descenders (the j in "ljuben") would be clipped by overflow:hidden without
+     this. Pad the box, then pull the extra height back out of the layout. */
+  padding-bottom: 0.16em;
+  margin-bottom: -0.16em;
+}
+
+.word {
+  display: inline-block;
+  will-change: transform;
+}
+
+/* --- entrances --------------------------------------------------------- */
 
 @media (prefers-reduced-motion: no-preference) {
-  /* ---------- scroll-linked path (modern browsers) ---------- */
-  @supports (animation-timeline: view()) {
-    /* Sections rise into place as they enter, finishing well before centre so
-       the page never feels like it is catching up with the scroll. */
-    [data-reveal] {
-      animation: rise linear both;
-      animation-timeline: view();
-      animation-range: entry 0% entry 55%;
-    }
+  /* Words start fully below their mask and slide up into it. */
+  .js-motion .word {
+    transform: translateY(110%);
+    transition: transform var(--motion-entrance) var(--motion-easing);
+    transition-delay: calc(var(--i, 0) * var(--motion-stagger));
+  }
 
-    /* The hero recedes as you leave it: drifts up, dims, settles back. Gives
-       the page depth without a parallax library. */
+  .js-motion .is-revealed .word,
+  .js-motion .word:where(.is-revealed *) {
+    transform: none;
+  }
+
+  /* The general reveal: rise and fade.
+     Excludes anything with its own treatment below, so no element ever carries
+     two competing transforms on the same property. */
+  .js-motion [data-reveal-target]:not(.trace-row, .work-item, .label, .heading) {
+    opacity: 0;
+    transform: translateY(var(--travel-rise));
+    transition:
+      opacity var(--motion-entrance) var(--motion-easing),
+      transform var(--motion-entrance) var(--motion-easing);
+    transition-delay: calc(var(--i, 0) * var(--motion-stagger));
+  }
+
+  .js-motion [data-reveal-target].is-revealed:not(.trace-row, .work-item, .label, .heading) {
+    opacity: 1;
+    transform: none;
+  }
+
+  /* Headings only fade — their words carry the movement, and adding a second
+     transform would fight the mask. */
+  .js-motion .heading[data-reveal-target] {
+    opacity: 0;
+    transition: opacity var(--motion-entrance) var(--motion-easing);
+  }
+
+  .js-motion .heading[data-reveal-target].is-revealed {
+    opacity: 1;
+  }
+
+  /* Rows and labels come in from the side instead — a different axis keeps a
+     long page from feeling like one repeated gesture. */
+  .js-motion .trace-row,
+  .js-motion .section-head .label {
+    opacity: 0;
+    transform: translateX(calc(var(--travel-slide) * -1));
+    transition:
+      opacity var(--motion-entrance) var(--motion-easing),
+      transform var(--motion-entrance) var(--motion-easing);
+    transition-delay: calc(var(--i, 0) * var(--motion-stagger));
+  }
+
+  .js-motion .trace-row.is-revealed,
+  .js-motion .section-head .label.is-revealed {
+    opacity: 1;
+    transform: none;
+  }
+
+  /* Work cards travel further and scale up slightly — they are the densest
+     part of the page and benefit from arriving with some weight. */
+  .js-motion .work-item {
+    opacity: 0;
+    transform: translateY(var(--travel-rise)) scale(0.96);
+    transition:
+      opacity var(--motion-entrance) var(--motion-easing),
+      transform var(--motion-entrance) var(--motion-easing);
+    transition-delay: calc(var(--i, 0) * var(--motion-stagger));
+  }
+
+  .js-motion .work-item.is-revealed {
+    opacity: 1;
+    transform: none;
+  }
+
+  /* A new chat answer should register as an event, but fast — this one is
+     feedback for something the visitor just did, so it uses the interaction
+     ceiling rather than the entrance duration. */
+  .chat-exchange {
+    animation: rise-in var(--motion-base) var(--motion-easing) both;
+  }
+}
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(1rem);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* --- continuous parallax ------------------------------------------------ */
+/* Applied only to elements with no entrance transition on `transform`, so the
+   two never fight over the same property. */
+
+@media (prefers-reduced-motion: no-preference) {
+  @supports (animation-timeline: view()) {
+    /* The hero recedes as you leave it. `.hero-intro` has no reveal of its own —
+       its children animate — so it is free to carry this. */
     .hero-intro {
       animation: recede linear both;
-      animation-timeline: view();
+      animation-timeline: view(--hero);
       animation-range: exit 0% exit 100%;
     }
 
-    /* The trace lifts at a different rate to the text above it — the two move
-       independently, which is what reads as depth. */
-    .hero .trace {
-      animation: lift linear both;
+    .hero {
+      view-timeline: --hero block;
+    }
+
+    /* The work grid drifts as three planes at different rates. That
+       differential is the effect; moving everything together is just
+       scrolling. The wrapper carries it so each card's entrance transform
+       stays untouched. */
+    .work {
+      animation: drift-grid linear both;
       animation-timeline: view();
-      animation-range: exit 0% exit 100%;
+      animation-range: entry 40% exit 100%;
     }
-
-    /* Trace rows cascade in from the left. Each row has its own view timeline,
-       so the stagger comes from their real positions rather than a delay. */
-    .trace-row {
-      animation: slide-in linear both;
-      animation-timeline: view();
-      animation-range: entry 10% entry 70%;
-    }
-
-    /* Section headings lead their labels by a hair. */
-    .section-head .label {
-      animation: slide-in linear both;
-      animation-timeline: view();
-      animation-range: entry 0% entry 45%;
-    }
-    .section-head .heading {
-      animation: slide-in linear both;
-      animation-timeline: view();
-      animation-range: entry 8% entry 60%;
-    }
-
-    /* Work cards rise as they enter, then keep drifting while in view. Columns
-       are offset so the grid moves as several planes rather than one slab —
-       this is the "content moves as you scroll" effect, and the offsets are
-       small on purpose. Too much and it reads as broken rather than deliberate. */
-    .work-item {
-      animation:
-        rise linear both,
-        drift linear both;
-      animation-timeline: view(), view();
-      animation-range:
-        entry 0% entry 50%,
-        entry 25% exit 100%;
-    }
-    .work-item:nth-child(3n + 2) {
-      animation-range:
-        entry 0% entry 58%,
-        entry 25% exit 100%;
-      --drift-distance: -1.6rem;
-    }
-    .work-item:nth-child(3n + 3) {
-      animation-range:
-        entry 0% entry 66%,
-        entry 25% exit 100%;
-      --drift-distance: -0.7rem;
-    }
-
-    /* The footer is the last thing; let it arrive rather than appear. */
-    .footer {
-      animation: rise linear both;
-      animation-timeline: view();
-      animation-range: entry 0% entry 80%;
-    }
-  }
-
-  /* ---------- fallback path (no scroll-driven animation) ----------
-     reveal.ts adds `js-reveals` to <html> ONLY when it is taking over, so this
-     never hides anything that has nothing to un-hide it. */
-  .js-reveals [data-reveal] {
-    opacity: 0;
-    transform: translateY(0.75rem);
-    transition:
-      opacity var(--motion-base) var(--motion-easing),
-      transform var(--motion-base) var(--motion-easing);
-  }
-
-  .js-reveals [data-reveal].is-revealed {
-    opacity: 1;
-    transform: none;
-  }
-
-  /* A new answer arriving should register as an event. */
-  .chat-exchange {
-    animation: rise var(--motion-base) var(--motion-easing) both;
-  }
-}
-
-/* --- keyframes --------------------------------------------------------- */
-
-@keyframes rise {
-  from {
-    opacity: 0;
-    transform: translateY(1.25rem);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-
-@keyframes slide-in {
-  from {
-    opacity: 0;
-    transform: translateX(-0.75rem);
-  }
-  to {
-    opacity: 1;
-    transform: none;
   }
 }
 
 @keyframes recede {
   to {
-    opacity: 0.25;
-    transform: translateY(-2.5rem);
+    opacity: 0.15;
+    transform: translateY(calc(var(--travel-drift) * -1));
   }
 }
 
-@keyframes lift {
+@keyframes drift-grid {
+  from {
+    transform: translateY(1.5rem);
+  }
   to {
-    opacity: 0.4;
-    transform: translateY(-1rem);
+    transform: translateY(calc(var(--travel-drift) * -0.5));
   }
 }
 
-@keyframes drift {
-  to {
-    transform: translateY(var(--drift-distance, -2.4rem));
-  }
-}
-
-/* --- reduced motion: everything off, nothing hidden -------------------- */
+/* --- reduced motion: everything off, nothing hidden --------------------- */
 
 @media (prefers-reduced-motion: reduce) {
   *,
@@ -217,13 +223,13 @@
     display: none;
   }
 
-  [data-reveal],
+  .word,
   .work-item,
   .trace-row,
   .hero-intro,
-  .hero .trace,
-  .footer {
-    opacity: 1;
-    transform: none;
+  .section-head .label,
+  [data-reveal-target] {
+    opacity: 1 !important;
+    transform: none !important;
   }
 }

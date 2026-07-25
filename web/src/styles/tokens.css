@@ -46,7 +46,14 @@
   /* --- motion --- */
   --motion-fast: 120ms;
   --motion-base: 200ms;
+  --motion-entrance: 760ms;
+  --motion-stagger: 70ms;
   --motion-easing: cubic-bezier(0.2, 0, 0, 1);
+
+  /* --- travel --- */
+  --travel-rise: 3.5rem;
+  --travel-slide: 2.5rem;
+  --travel-drift: 5rem;
 
   /* --- radius --- */
   --radius-sharp: 3px;

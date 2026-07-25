@@ -33,9 +33,13 @@ GROUPS = [
     ("size", "size"),
     ("space", "space"),
     ("motion", "motion"),
+    ("travel", "travel"),
     ("radius", "radius"),
     ("tracking", "tracking"),
 ]
+
+# Keys in tokens.json that are documentation, not tokens.
+NON_TOKEN_KEYS = {"$schema-note"}
 
 
 def kebab(name: str) -> str:
@@ -51,7 +55,19 @@ def kebab(name: str) -> str:
 
 
 def load() -> dict:
-    return json.loads(TOKENS.read_text(encoding="utf-8"))
+    tokens = json.loads(TOKENS.read_text(encoding="utf-8"))
+
+    # A group added to tokens.json but not to GROUPS would be silently dropped
+    # from every output — the token would simply not exist, and the first sign
+    # would be a broken layout. Fail loudly instead.
+    known = {name for name, _ in GROUPS} | NON_TOKEN_KEYS
+    unknown = sorted(set(tokens) - known)
+    if unknown:
+        raise SystemExit(
+            f"tokens.json has group(s) the generator does not emit: {', '.join(unknown)}\n"
+            f"Add them to GROUPS in design/generate.py, or remove them from the JSON."
+        )
+    return tokens
 
 
 def render_css(tokens: dict) -> str:

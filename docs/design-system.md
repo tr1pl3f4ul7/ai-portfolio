@@ -86,23 +86,42 @@ Two kinds, with different rules.
 - **`--motion-base` (200ms) is a ceiling.** Nothing on this site eases longer.
 - **`--motion-easing` is decelerating** — precise, never bouncy. No overshoot, no spring.
 
-**Scroll-linked** — content that moves *with* the scroll rather than snapping once on entry. The
-duration ceiling does not apply, because there is no duration: scroll position is the timeline.
-What replaces it is restraint in distance.
+**Entrances** — an element arriving on screen, on scroll or on load. These use
+`--motion-entrance` (760ms), not the interaction ceiling: travel across a screen needs time to
+read as movement rather than as a flicker.
 
-- Built on CSS `animation-timeline` (`view()` / `scroll()`), so the browser runs it off the main
-  thread. No scroll listener, nothing to hydrate, no layout thrash.
-- **Drift distances stay under ~2.5rem.** Enough to read as depth, not enough to read as broken.
-- Elements on the same screen move at *different* rates — that difference is the effect. Moving
-  everything together is just scrolling.
-- Stagger comes from each element's own position in the viewport, not from hand-tuned delays.
+- **Distance is what makes motion visible.** `--travel-rise` is 3.5rem (56px) and
+  `--travel-slide` 2.5rem (40px). An earlier version used 1.25rem and was, correctly, reported as
+  "no animation at all" — it was running perfectly and simply too small to see.
+- **Vary the axis.** Cards rise, rows and labels come in from the side, heading words slide up
+  from behind a mask. One repeated gesture down a long page reads as a template.
+- **Stagger with `--motion-stagger` (70ms)** multiplied by an index `motion.ts` sets on siblings.
+- Headings are split per word and masked; the words carry the movement, so the heading itself only
+  fades — two transforms on one element fight.
+
+**Driven by class toggles, not scroll timelines.** `motion.ts` toggles `is-revealed` from an
+IntersectionObserver and CSS transitions the result. The first implementation used
+`animation-timeline: view()` on whole `<section>` elements; a section taller than the viewport has
+a degenerate `entry` range, so those animations finished before the section was ever on screen and
+nothing appeared to move. Class toggles work at any element height — and, unlike compositor-driven
+timelines, can be asserted on in tests.
+
+**Continuous parallax** stays in CSS `animation-timeline`, where it belongs: it genuinely wants a
+scroll timeline and runs off the main thread. Apply it only to elements that do *not* also have an
+entrance transition on `transform`, or the animation and the transition will fight. Elements on
+the same screen should move at *different* rates — that differential is the effect; moving
+everything together is just scrolling.
 
 `web/src/styles/motion.css` holds all of it; `main.css` holds none.
 
-**The fallback must never hide content.** The scroll-linked CSS is the primary path; browsers
-without it get a one-shot IntersectionObserver reveal, and that fallback's CSS is armed by a class
-`reveal.ts` adds *only* when an observer is definitely going to run. A browser supporting neither
-shows a complete, static page rather than a blank one.
+**The hidden state must never outlive its reveal.** It lives behind `.js-motion`, a class
+`motion.ts` adds *only* once an observer is guaranteed to run. No JavaScript, no
+IntersectionObserver, or reduced motion — the page renders complete and static rather than blank.
+
+**Never make an entrance depend on `requestAnimationFrame`.** The hero has nothing to scroll it
+into view, so it reveals on load; doing that in a rAF callback left the headline permanently
+invisible in a background tab and in any non-compositing embedder. Force a style flush
+(`void document.body.offsetHeight`) and reveal synchronously instead.
 
 Every animation sits behind `prefers-reduced-motion`. Non-negotiable — it is already a rule in
 `web/CLAUDE.md`.
