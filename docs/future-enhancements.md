@@ -48,7 +48,7 @@ it takes, published as a table and a short written analysis.
 
 | Layer | Cold start | Warm latency | Cost per 1k requests | Notes |
 |---|---|---|---|---|
-| Browser (WebLLM) | model download | on-device inference | $0 | device-dependent |
+| Browser (transformers.js) | model download | on-device inference | $0 | device-dependent |
 | Edge (Workers AI) | | | | |
 | Server (VM RAG) | | | | |
 | Cloud API (Claude) | | | | |

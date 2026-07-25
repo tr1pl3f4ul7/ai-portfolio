@@ -80,8 +80,8 @@ Ampere A1 VM, not the test container, not the CI runners.
 
 ## Running the full test suite
 
-`sqlite-vec` has no Windows ARM64 wheel, so retrieval tests **cannot** run natively on the dev
-machine — they skip via `importorskip`. A green `pytest` on Windows is therefore not proof.
+`sqlite-vec` has no Windows-on-Arm wheel, so retrieval tests **cannot** run natively on this
+Copilot PC — they skip via `importorskip`. A green `pytest` locally is therefore not proof.
 
 Before presenting any retrieval work, run the whole suite on Linux:
 
@@ -104,10 +104,10 @@ Decisions 19 and 23 in `docs/decisions.md` have the reasoning. **Target 3.12 in 
 production.
 
 ⚠️ Python 3.11 is also installed on this machine and `python` on PATH may still resolve to it.
-Create the venv with the 3.12 interpreter explicitly:
+Create the venv with the 3.12 (ARM64) interpreter explicitly, e.g.:
 
 ```
-C:\Users\tr1pl3f4ul7\AppData\Local\Programs\Python\Python312-arm64\python.exe -m venv .venv
+<path-to-Python312-arm64>\python.exe -m venv .venv
 ```
 
 Check with `.venv\Scripts\python --version` before installing anything.

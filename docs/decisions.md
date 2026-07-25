@@ -184,7 +184,7 @@ default security list separately.
 **Date:** 2026-07-23
 **Status:** accepted — **version choice superseded by decision 23** (the extra-index-URL finding still stands)
 
-**Context:** The dev machine is Windows 11 on ARM64 (Snapdragon X Elite). The plan pins
+**Context:** The dev machine is a Copilot PC (Arm-based Windows). The plan pins
 `sentence-transformers/all-MiniLM-L6-v2`, which depends on PyTorch. Verified by testing:
 `pip install torch` fails outright — PyPI publishes **zero** `win_arm64` wheels for torch.
 
@@ -215,11 +215,11 @@ easy thing to get wrong, so it is documented in the root `CLAUDE.md` and `backen
 **Date:** 2026-07-23
 **Status:** accepted
 
-**Context:** Flutter publishes no Windows ARM64 build — the release manifest lists `dart_sdk_arch:
-x64` for every stable Windows release. There is also no winget package for the SDK.
+**Context:** Flutter publishes no native Arm Windows build — the release manifest lists
+`dart_sdk_arch: x64` for every stable Windows release. There is also no winget package for the SDK.
 
-**Decision:** Install the x64 SDK (3.44.7) to `C:\src\flutter` and run it under Windows' x64
-emulation.
+**Decision:** Install the x64 SDK (3.44.7) and run it under Windows' x64 emulation on this Copilot
+PC.
 
 **Rejected:** Waiting for a native build (none announced), or developing the Flutter app in a
 Linux VM (heavier, and the existing Android Studio + SDK 36.1.0 + JDK 21 install is already on
@@ -619,10 +619,10 @@ check. The packet-counter measurement itself only works on the VM — a containe
 **Date:** 2026-07-23
 **Status:** accepted
 
-**Context:** `pip install uvicorn[standard]` fails on the Windows ARM64 dev machine. The extra
-pulls in `httptools`, which has **never** published a `win_arm64` wheel — only `win_amd64`, across
-every release — so pip falls back to compiling from source and fails. The extra also wants
-`uvloop`, which does not support Windows at all.
+**Context:** `pip install uvicorn[standard]` fails on this Copilot PC. The extra pulls in
+`httptools`, which has **never** published a `win_arm64` wheel — only `win_amd64`, across every
+release — so pip falls back to compiling from source and fails. The extra also wants `uvloop`,
+which does not support Windows at all.
 
 **Decision:** Depend on plain `uvicorn` everywhere — dev, VM and CI.
 
@@ -653,8 +653,8 @@ SDK (decision 9).
 
 **Context:** `sqlite-vec` publishes wheels for macOS x86 and ARM, Linux x86 and aarch64, and
 Windows x64 — but **no `win_arm64`**. It runs on the Oracle VM and in CI, and cannot run natively
-on the dev machine. Checked at the same time: `chromadb` and `faiss-cpu` have the same gap.
-`numpy` and `onnxruntime` do ship ARM64 Windows wheels.
+on this Copilot PC. Checked at the same time: `chromadb` and `faiss-cpu` have the same gap.
+`numpy` and `onnxruntime` do ship `win_arm64` wheels.
 
 This is the fourth ARM64 packaging trap on this project, after torch (8), the Flutter SDK (9) and
 `httptools` (25).
@@ -1200,8 +1200,8 @@ through review is itself part of the mobile skillset the portfolio is arguing fo
 
 **Consequences:**
 
-- **A Mac is required for iOS, and the dev machine is Windows ARM64.** Flutter cannot build or
-  sign an iOS app off macOS — this is the hard constraint of the whole phase and it has no
+- **A Mac is required for iOS, and the dev machine is a Windows Copilot PC.** Flutter cannot build
+  or sign an iOS app off macOS — this is the hard constraint of the whole phase and it has no
   workaround on Windows. The repo being **public** resolves it cheaply: GitHub Actions provides
   free `macos` runners for public repositories, so iOS builds and uploads can run in CI without
   owning Apple hardware. Confirm that at Phase 7 rather than assuming it, and treat "no Mac" as a
@@ -1220,6 +1220,131 @@ through review is itself part of the mobile skillset the portfolio is arguing fo
   gitignored. Signing material never enters the repo.
 - Review timelines are outside our control and can add days. Do not schedule the store submission
   as the last task before showing the portfolio to anyone.
+
+---
+
+## 43. On-device summariser: transformers.js over WebLLM
+
+**Date:** 2026-07-25
+**Status:** accepted for the engine choice; the model and device-branching below are superseded by
+[decision 44](#44-on-device-project-finder-retrieval-instead-of-generation), which replaced the
+summariser entirely. Supersedes the plan's "using WebLLM" wording for Step 3.3.
+
+**Context:** Step 3.3 named WebLLM, which only runs on WebGPU. LJ's own dev machine — a Copilot PC
+— got "No WebGPU adapter is available" in real Chrome. Research showed this is not a bug in the
+widget: Chrome and Edge ship WebGPU disabled by default on Copilot PCs
+([gpuweb/gpuweb#5272](https://github.com/gpuweb/gpuweb/issues/5272), filed against the same
+hardware class), gated behind the experimental `chrome://flags/#enable-unsafe-webgpu` flag. LJ
+enabled that flag and it still found no adapter — a driver-level gap underneath the browser's
+blocklist, not a flag away from fixed. WebLLM has no fallback path for this; it is WebGPU or
+nothing.
+
+**Decision:** Replace WebLLM with [transformers.js](https://github.com/huggingface/transformers.js),
+running `onnx-community/Qwen2.5-0.5B-Instruct`. It runs on WASM by default — every browser has
+that — and upgrades to WebGPU automatically when `chooseDevice()` confirms a real adapter with
+`shader-f16` support, rather than trusting `navigator.gpu`'s mere presence (which is exactly what
+was true, and misleading, on LJ's own machine).
+
+**Rejected:**
+
+- *Keep WebLLM, improve the failure message only.* Matches the plan exactly and is a smaller
+  change, but does nothing for a visitor on this class of hardware — and LJ's own laptop is that
+  hardware. Asking a recruiter to flip an experimental browser flag is not a real fallback.
+- *Run both engines, WebLLM where WebGPU exists and transformers.js elsewhere.* Two inference
+  paths to maintain for one small widget, against Principle 2 (Simplicity First) — transformers.js
+  alone already covers both cases through one API.
+- *ONNX Runtime Web's own multi-provider fallback* (`device: 'auto'`, letting the runtime try
+  WebGPU then WASM itself). Rejected in favour of our own adapter check: `'gpu' in navigator` is
+  all transformers.js's own availability check does internally, which is the exact condition that
+  is true and useless on LJ's machine. Multi-provider EP fallback also has a documented open issue
+  for at least one other provider (webnn) not falling back cleanly on an init error, so a single
+  explicit device chosen ahead of time is more predictable than trusting the chain.
+
+**Consequences:**
+
+- Smaller model than planned: Qwen2.5-0.5B-Instruct instead of Llama-3.2-1B-Instruct. Weaker
+  summaries, accepted because the model runs on every device rather than a subset.
+- Two download weights depending on device: ~512 MB (q8, WASM) or ~483 MB (q4f16, WebGPU) for the
+  model, plus the WASM build of ONNX Runtime Web itself (~24 MB) the first time any visitor without
+  a working WebGPU adapter uses it — fetched lazily, on click, same as the model weights.
+- WASM generation is genuinely slower than WebGPU — CPU-bound token generation, expect tens of
+  seconds rather than a few, for a three-to-four-sentence summary. The widget reports the actual
+  measured time and which device ran, so this is disclosed rather than hidden.
+- `web/CLAUDE.md`'s "On-device model" row is updated to match. `docs/PROJECT_PLAN.md`'s Step 3.3
+  wording is left as originally written, per the standing convention for this log (see decision 28
+  for the embedding-model precedent) — this entry is the record of what was actually built.
+
+---
+
+## 44. On-device project finder: retrieval instead of generation
+
+**Date:** 2026-07-25
+**Status:** accepted — replaces the summariser built under decision 43 with a different feature
+
+**Context:** Decision 43 fixed the availability problem (transformers.js runs everywhere WebLLM
+couldn't) but not a deeper one. LJ tested the shipped summariser against the real
+`Qwen2.5-0.5B-Instruct` model on WASM and got two results, not one: a 283-second wait for a single
+summary, and a summary that invented facts — "ten years in AI development" (false: ten years total
+career, AI is the recent specialisation), "languages including Unity3D" (Unity3D is a game engine,
+not a language), unearned claims like "known for his ability to create complex AI systems." No
+system-prompt change reliably stops a sub-1B model from filling gaps with plausible fiction when
+asked to freely generate prose about a multi-paragraph biography — that is a capability ceiling of
+models this size on open-ended generation, not an implementation bug. On a page whose entire
+argument is that the numbers and claims shown are real, a feature that lies is worse than no
+feature.
+
+**Decision:** Replace free-text summarisation with retrieval. The widget now embeds the real
+`<li class="work-item">` project entries already in `index.html` plus whatever the visitor typed,
+using `onnx-community/all-MiniLM-L6-v2-ONNX` (encoder-only, `q4`, ~54 MB), and reports whichever
+project sits closest by cosine similarity — implemented in `web/src/project-finder.ts`. The result
+is always one of the real entries on the page; the model is never in a position to say anything
+that isn't already true, because it isn't generating text, only pointing at some.
+
+This also resolved the speed and size problems as a side effect rather than requiring separate
+fixes: an encoder-only model needs no KV cache and no autoregressive loop, so embedding a short
+query is a single forward pass measured in tens of milliseconds, not the 283 seconds the generative
+version took. The WebGPU/WASM device split decision 43 built became unnecessary too — an embedding
+model this cheap per call doesn't need GPU acceleration to feel instant, so the widget now always
+runs on WASM, and that whole branch of complexity was deleted along with it.
+
+**Rejected:**
+
+- *Keep generation, pick a smaller model and fix the threading.* Considered: adding
+  `Cross-Origin-Opener-Policy`/`Cross-Origin-Embedder-Policy` headers would let ONNX Runtime Web's
+  threaded WASM backend run (LJ's 283s wait was on a single thread, blocking the page for its
+  entire duration), and a smaller decoder would download faster. Rejected because neither touches
+  the actual complaint — hallucination is a property of asking a small model to freely generate,
+  not of how fast or how large it is. A faster liar is still a liar.
+- *Cut the browser layer entirely, rely on the Flutter app's on-device story.* Seriously
+  considered — `flutter_local_ai` calls the OS's own shipped model (Apple's on-device Foundation
+  Model / Android's Gemini Nano), which is dramatically more capable and needs no download at all,
+  and `mobile/CLAUDE.md` already frames that contrast with web deliberately. Rejected because it
+  would drop the hero's "four different places" thesis to three and required rewriting the
+  page's central pitch, when a same-scope fix (change the task, not the count of layers) was
+  available.
+- *Keep the four-layer count but replace the browser demo with something unrelated to the
+  project content* (e.g. a generic on-device classifier). Rejected because retrieval over the
+  actual project list is strictly more relevant to a portfolio visitor than a disconnected demo,
+  and reuses content that already exists rather than inventing a new corpus to maintain.
+
+**Consequences:**
+
+- `web/src/summariser.ts` and `web/src/profile.ts` are deleted. The condensed-bio text in
+  `profile.ts` no longer has a consumer — project text is read straight from the DOM
+  (`readProjects()`) instead of maintained as a second copy, closing the drift risk that a
+  duplicated corpus would have created.
+- No cancel-download affordance was added, despite LJ asking for one against the old ~500 MB
+  generative download. transformers.js exposes no abort/cancel hook for an in-flight model fetch
+  (confirmed by reading the installed package's source, not assumed), and at ~54 MB the download
+  is fast enough on any real connection that the original motivation — a visitor stuck waiting
+  minutes for something they no longer want — mostly no longer applies. Revisit if a slow-connection
+  visitor reports otherwise.
+- The matched project is highlighted (`.work-item.is-matched`, `--color-signal` outline) and
+  scrolled into view, so the browser layer's result visibly lands on the same real content the
+  visitor can already see and read — a stronger demonstration than a disconnected text output.
+- `web/CLAUDE.md`, root `CLAUDE.md`, `README.md`, `mobile/CLAUDE.md`, and the `write-tests` skill
+  are updated to describe the project finder rather than the summariser. `docs/PROJECT_PLAN.md`'s
+  Step 3.3 wording is left as originally written, same convention as decisions 28 and 43.
 
 ---
 

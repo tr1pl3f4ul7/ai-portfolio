@@ -47,7 +47,7 @@
           <div class="trace-row" data-layer="browser">
             <span class="trace-rail" aria-hidden="true"></span>
             <span class="trace-where">browser</span>
-            <span class="trace-what">Summarises my experience on your device</span>
+            <span class="trace-what">Matches your question to a real project, on your device</span>
             <span class="trace-cost" data-cost>your machine</span>
           </div>
 
@@ -73,6 +73,23 @@
           </div>
         </section>
       </header>
+
+      <!-- ================= ON-DEVICE PROJECT FINDER ================= -->
+      <section class="section" data-reveal>
+        <div class="section-head">
+          <p class="label">browser</p>
+          <h2 class="heading">ask which project fits, on your machine</h2>
+        </div>
+        <p class="prose">
+          Type what you're after and a small model embeds your question,
+          compares it against my real projects below, and points at the
+          closest match — entirely on your device, no request goes out. It
+          can't invent a project that doesn't exist; it can only find the
+          nearest real one. About 50 MB, downloaded once and cached by your
+          browser.
+        </p>
+        <div id="finder" class="finder"></div>
+      </section>
 
       <!-- ================= CHAT ================= -->
       <section class="section" data-reveal>
@@ -100,8 +117,26 @@
             <p class="work-meta">propertyme · 2022–2026</p>
             <h3 class="work-name">PropertyMe</h3>
             <p class="work-note">
-              Flutter apps for property owners, tenants and managers. Two audiences,
-              one codebase, four years.
+              Flutter app for property owners and tenants, two audiences through
+              one codebase. His main product for four years.
+            </p>
+          </li>
+          <li class="work-item">
+            <p class="work-meta">propertyme · 2022–2026</p>
+            <h3 class="work-name">PropertyMe Agent</h3>
+            <p class="work-note">
+              The mobile counterpart for property managers doing the job away
+              from a desk — inspections, appointments, workflow the owner and
+              tenant app doesn't carry. Shares a backend with its sibling app.
+            </p>
+          </li>
+          <li class="work-item">
+            <p class="work-meta">gruntify · 2021</p>
+            <h3 class="work-name">Gruntify</h3>
+            <p class="work-note">
+              Android GIS platform for field workers — inspection teams and crews
+              on site, with AR features. Several Australian local government
+              councils are clients, alongside enterprise SaaS customers.
             </p>
           </li>
           <li class="work-item">
@@ -114,6 +149,33 @@
             </p>
           </li>
           <li class="work-item">
+            <p class="work-meta">vreestory · 2019</p>
+            <h3 class="work-name">Wincanton Fire Safety</h3>
+            <p class="work-note">
+              VR fire-safety training for a UK logistics company — rehearsing
+              dangerous procedures without the danger, the most clearly
+              justified use of VR on this list.
+            </p>
+          </li>
+          <li class="work-item">
+            <p class="work-meta">ozone.bg · 2019</p>
+            <h3 class="work-name">Ozone Transport</h3>
+            <p class="work-note">
+              Android app for company drivers — daily delivery tasks, live
+              reporting per stop, and parcel barcode scanning with the phone
+              camera. Built in-house alongside Ozone Warehouse.
+            </p>
+          </li>
+          <li class="work-item">
+            <p class="work-meta">vreestory · 2019</p>
+            <h3 class="work-name">Hood VR</h3>
+            <p class="work-note">
+              VR recycling game built for Romania's Ministry of National
+              Education, presented in more than 20 schools — the widest reach
+              of anything here.
+            </p>
+          </li>
+          <li class="work-item">
             <p class="work-meta">musala soft · 2019</p>
             <h3 class="work-name">Montblanc Hub</h3>
             <p class="work-note">
@@ -123,19 +185,38 @@
             </p>
           </li>
           <li class="work-item">
+            <p class="work-meta">software group · 2018</p>
+            <h3 class="work-name">Atlantic Money</h3>
+            <p class="work-note">
+              Banking outside the branch — a mobile app letting a financial
+              institution's representatives serve customers in Cameroon,
+              where branch infrastructure doesn't reach.
+            </p>
+          </li>
+          <li class="work-item">
+            <p class="work-meta">vreestory · 2018</p>
+            <h3 class="work-name">OMV VR</h3>
+            <p class="work-note">
+              Promotional VR game for a fuel brand, never shipped to a store —
+              delivered instead at live events, touring the country with GearVR
+              headsets.
+            </p>
+          </li>
+          <li class="work-item">
+            <p class="work-meta">personal project · 2018</p>
+            <h3 class="work-name">Stylebox</h3>
+            <p class="work-note">
+              An OpenCart store built for free, in his own time, for his
+              mother's business — plus a companion WebView app. Went on to
+              generate real revenue before the business closed.
+            </p>
+          </li>
+          <li class="work-item">
             <p class="work-meta">solvedout · 2017</p>
             <h3 class="work-name">Hellboy VR</h3>
             <p class="work-note">
               Dual 8K stereoscopic video on phone-driven headsets, for Lions Gate.
               No active cooling, one frame budget.
-            </p>
-          </li>
-          <li class="work-item">
-            <p class="work-meta">allterco · 2016–2017</p>
-            <h3 class="work-name">Neonatal monitoring</h3>
-            <p class="work-note">
-              Tablet app reading pulse oximeters for newborns over Bluetooth Low
-              Energy, against firmware that changed underneath it.
             </p>
           </li>
           <li class="work-item">
@@ -155,30 +236,29 @@
             </p>
           </li>
           <li class="work-item">
-            <p class="work-meta">gruntify · 2021</p>
-            <h3 class="work-name">Gruntify</h3>
+            <p class="work-meta">allterco · 2017</p>
+            <h3 class="work-name">Madara Rider AR</h3>
             <p class="work-note">
-              Android GIS platform for field workers — inspection teams and crews
-              on site, with AR features. Several clients were Australian local
-              governments.
+              AR tourism proof of concept — recognises Bulgaria's Madara Rider
+              rock relief and plays a promotional video, built with Vuforia on
+              Unity3D. A fast technology evaluation, not delivered work.
             </p>
           </li>
           <li class="work-item">
-            <p class="work-meta">vreestory · 2018</p>
-            <h3 class="work-name">OMV VR</h3>
+            <p class="work-meta">allterco · 2016–2017</p>
+            <h3 class="work-name">Neonatal monitoring</h3>
             <p class="work-note">
-              Promotional VR game for a fuel brand, never shipped to a store —
-              delivered instead at live events, touring the country with GearVR
-              headsets.
+              Tablet app reading pulse oximeters for newborns over Bluetooth Low
+              Energy, against firmware that changed underneath it.
             </p>
           </li>
           <li class="work-item">
-            <p class="work-meta">vreestory · 2019</p>
-            <h3 class="work-name">Hood VR</h3>
+            <p class="work-meta">allterco · 2016</p>
+            <h3 class="work-name">Happy Call</h3>
             <p class="work-note">
-              VR recycling game for a Romanian government schools programme,
-              presented in more than 20 schools — the widest reach of anything
-              here.
+              WebView Android app providing a ringback tone service for a
+              telecoms operator, using Firebase notifications. One of his
+              first professional projects.
             </p>
           </li>
         </ol>

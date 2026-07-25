@@ -3,8 +3,11 @@
 Reuses the **same backend** as the web one-pager, and adds a second on-device inference surface —
 this time using each platform's built-in AI rather than a downloaded model.
 
-The contrast with `web/` is the point: WebLLM downloads a quantised model to the browser;
-`flutter_local_ai` calls an LLM the OS already ships. Same capability, opposite trade-off.
+The contrast with `web/` is the point: the web project finder downloads a small model to the
+browser; `flutter_local_ai` calls an LLM the OS already ships. Same on-device principle, opposite
+trade-off — and here, opposite task too: the web widget matches against real projects because a
+browser-sized model can't be trusted to freely summarise without inventing things (decision 44);
+the OS-shipped model on mobile is capable enough to attempt the fuller task.
 
 ## Stack
 
@@ -58,7 +61,7 @@ flutter build apk --release
 
 ## Environment note
 
-The Flutter SDK here is x64 running under emulation — this dev machine is Windows ARM64 and
-Flutter ships no native ARM64 Windows build. Everything works; builds are just slower than you'd
-expect. `flutter doctor` also warns about a missing Visual Studio C++ workload: that's only
-needed for Flutter **Windows desktop** targets, which are out of scope. Ignore it.
+The Flutter SDK here is x64 running under emulation — this dev machine is a Copilot PC and Flutter
+ships no native Arm Windows build. Everything works; builds are just slower than you'd expect.
+`flutter doctor` also warns about a missing Visual Studio C++ workload: that's only needed for
+Flutter **Windows desktop** targets, which are out of scope. Ignore it.

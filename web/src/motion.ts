@@ -28,6 +28,7 @@ const REVEAL_SELECTOR = [
   ".trace-row",
   ".section-head > *",
   ".prose",
+  ".finder",
   ".chat",
   ".work-item",
   ".contact-form .field",

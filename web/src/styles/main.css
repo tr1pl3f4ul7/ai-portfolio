@@ -264,6 +264,84 @@ a {
 
 /* --- chat ------------------------------------------------------------ */
 
+/* --- on-device project finder (browser layer) -------------------------- */
+
+.finder {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.finder-form {
+  display: flex;
+  gap: var(--space-2);
+  width: 100%;
+  max-width: 32rem;
+}
+
+.finder-status {
+  font-family: var(--font-mono);
+  font-size: var(--size-s-1);
+  color: var(--color-ink-faint);
+}
+
+.finder-status:empty {
+  display: none;
+}
+
+/* The download bar. Coloured as the browser layer, because that is precisely
+   what is being paid for here. */
+.finder-track {
+  width: 100%;
+  max-width: 32rem;
+  height: 2px;
+  background: var(--color-line);
+  overflow: hidden;
+}
+
+.finder-bar {
+  height: 100%;
+  background: var(--color-layer-browser);
+  transform: scaleX(var(--progress, 0));
+  transform-origin: 0 50%;
+  transition: transform var(--motion-base) var(--motion-easing);
+}
+
+/* Secondary action next to the download bar — quiet by default, matching
+   .chat-prompt, so it doesn't compete with the primary signal-coloured
+   "find a project" button. */
+.finder-cancel {
+  background: transparent;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-sharp);
+  color: var(--color-ink-faint);
+  font-family: var(--font-sans);
+  font-size: var(--size-s-1);
+  padding: var(--space-2) var(--space-3);
+  cursor: pointer;
+  align-self: flex-start;
+  transition:
+    border-color var(--motion-fast) var(--motion-easing),
+    color var(--motion-fast) var(--motion-easing);
+}
+
+.finder-cancel:hover {
+  border-color: var(--color-signal);
+  color: var(--color-ink);
+}
+
+.finder-output {
+  color: var(--color-ink-dim);
+  max-width: 60ch;
+  border-left: 2px solid var(--color-layer-browser);
+  padding-left: var(--space-4);
+}
+
+.finder-output:empty {
+  display: none;
+}
+
 .chat {
   display: flex;
   flex-direction: column;
@@ -345,12 +423,14 @@ a {
   font-size: var(--size-s-1);
 }
 
-.chat-form {
+.chat-form,
+.finder-form {
   display: flex;
   gap: var(--space-2);
 }
 
 .chat-input,
+.finder-input,
 .contact-form input,
 .contact-form textarea {
   flex: 1;
@@ -366,22 +446,26 @@ a {
 }
 
 .chat-input::placeholder,
+.finder-input::placeholder,
 .contact-form ::placeholder {
   color: var(--color-ink-faint);
 }
 
 .chat-input:focus,
+.finder-input:focus,
 .contact-form input:focus,
 .contact-form textarea:focus {
   border-color: var(--color-signal);
 }
 
-.chat-input:disabled {
+.chat-input:disabled,
+.finder-input:disabled {
   opacity: 0.6;
 }
 
 .chat-send,
-.contact-send {
+.contact-send,
+.finder-run {
   background: transparent;
   border: 1px solid var(--color-signal);
   border-radius: var(--radius-sharp);
@@ -396,13 +480,15 @@ a {
 }
 
 .chat-send:hover:not(:disabled),
-.contact-send:hover:not(:disabled) {
+.contact-send:hover:not(:disabled),
+.finder-run:hover:not(:disabled) {
   background: var(--color-signal);
   color: var(--color-ground);
 }
 
 .chat-send:disabled,
-.contact-send:disabled {
+.contact-send:disabled,
+.finder-run:disabled {
   opacity: 0.5;
   cursor: default;
 }
@@ -448,6 +534,17 @@ a {
   gap: var(--space-2);
   border-top: 1px solid var(--color-line);
   padding-top: var(--space-3);
+  /* Transparent by default so the matched-state colour transition (below)
+     has somewhere to start from. */
+  outline: 1px solid transparent;
+  outline-offset: var(--space-2);
+  transition: outline-color var(--motion-base) var(--motion-easing);
+}
+
+/* A temporary pointer at whichever work item the project finder just
+   matched — see src/project-finder.ts. */
+.work-item.is-matched {
+  outline-color: var(--color-signal);
 }
 
 .work-meta {

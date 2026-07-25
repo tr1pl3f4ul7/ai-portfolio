@@ -42,7 +42,7 @@ on LJ's infrastructure.**
 
 | Token | Layer | Why this pole |
 |---|---|---|
-| `--color-layer-browser` | WebLLM, on-device | Cool. Nothing leaves the visitor's machine. |
+| `--color-layer-browser` | On-device model, transformers.js | Cool. Nothing leaves the visitor's machine. |
 | `--color-layer-edge` | Cloudflare Workers AI | Cool. Near the visitor, not near LJ. |
 | `--color-layer-server` | Oracle VM, Brisbane | Warm. LJ's own hardware. |
 | `--color-layer-cloud` | Anthropic API | Warm. LJ's account, LJ's bill. |

@@ -12,6 +12,16 @@ import { defineConfig } from "vitest/config";
 const DEV_API_TARGET = process.env.DEV_API_TARGET ?? "http://140.238.207.203";
 
 export default defineConfig({
+  optimizeDeps: {
+    // transformers.js resolves its own WASM/worker files internally via paths
+    // Vite's esbuild pre-bundler can't statically follow. Pre-bundling it
+    // anyway produces a broken `.vite/deps` copy that fails at import time
+    // ("Failed to fetch dynamically imported module"). Excluding it means the
+    // browser loads it as a native ES module instead, which resolves its own
+    // internal imports correctly.
+    exclude: ["@huggingface/transformers"],
+  },
+
   server: {
     // Proxying in development means the browser makes a same-origin request, so
     // there is no CORS preflight and the dev path exercises the same relative

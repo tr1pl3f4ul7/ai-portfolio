@@ -80,8 +80,8 @@ This project is built from `docs/PROJECT_PLAN.md` **one step at a time, not one 
 - If verification fails, fix and re-run the tests before asking again. Never move on with a
   known failure.
 - Don't override a decision already made in the plan without confirming first. If something is
-  genuinely blocked (no ARM64 support, Oracle capacity), propose the *smallest* viable
-  substitution and record it in `docs/decisions.md`.
+  genuinely blocked (a Copilot PC compatibility gap, Oracle capacity), propose the *smallest*
+  viable substitution and record it in `docs/decisions.md`.
 
 Anything tagged `🧑 MANUAL` in the plan needs step-by-step instructions for LJ **and** an
 explanation of why it can't be automated.
@@ -140,7 +140,7 @@ architectural reasoning is the actual content:
 
 | Layer | Runs on | Does |
 |---|---|---|
-| **Browser** | Visitor's device | WebLLM summarises LJ's experience — no network, no API cost |
+| **Browser** | Visitor's device | On-device model (transformers.js) matches a question to LJ's real projects — no network, no API cost |
 | **Edge** | Cloudflare Workers AI | Spam/quality pre-filter on contact submissions |
 | **Server** | Oracle Ampere A1 VM (2 OCPU / 12 GB) | FastAPI RAG chatbot over a local vector store |
 | **Cloud API** | Anthropic Claude API | Contact triage + RAG answer generation |
@@ -157,7 +157,7 @@ footprint, flag it.
 
 | Path | What lives there | Owning phase |
 |---|---|---|
-| `web/` | One-pager: animations, chat widget, WebLLM summariser | 3 |
+| `web/` | One-pager: animations, chat widget, on-device project finder | 3 |
 | `mobile/` | Flutter app | 6 |
 | `backend/` | FastAPI: RAG chatbot + contact triage | 2 |
 | `edge/` | Cloudflare Worker pre-filter | 4 |
@@ -177,8 +177,8 @@ pre-create files for a phase you haven't reached.**
 
 ## Environment — Read This Before Installing Anything
 
-The dev machine is **Windows 11 on ARM64** (Snapdragon X Elite). This is not a normal x64 box and
-it bites in specific places:
+The dev machine is a **Copilot PC** (Arm-based Windows). This is not a normal x64 box and it bites
+in specific places:
 
 - **`pip install torch` fails.** PyPI has zero `win_arm64` wheels. They exist only at
   `https://download.pytorch.org/whl/cpu`, which `backend/requirements.txt` declares as an extra
@@ -187,10 +187,10 @@ it bites in specific places:
   the whole CUDA toolkit — several GB of `nvidia-*` packages. Nothing in this project has a GPU.
   `torch==2.13.0+cpu` publishes wheels for `win_arm64`, `manylinux_2_28_aarch64` (VM, container)
   and `manylinux_2_28_x86_64` (CI), so one pin covers every target.
-- **`sqlite-vec` has no Windows ARM64 wheel at all.** Backend retrieval tests run in a Linux
+- **`sqlite-vec` has no Windows-on-Arm wheel at all.** Backend retrieval tests run in a Linux
   container: `cd backend/test && ./run-tests.sh`. A native `pytest` skips them.
-- **Flutter has no Windows ARM64 build.** The x64 SDK at `C:\src\flutter` runs under emulation.
-  Works, just slower.
+- **Flutter has no native Windows-on-Arm build.** The x64 SDK runs under emulation. Works, just
+  slower.
 - Shell is PowerShell 7+; a Bash tool is also available. They take different syntax.
 
 Installed toolchain: Python 3.12.10 (**use this**; 3.11.9 also present but `backend/` targets
@@ -209,7 +209,7 @@ presenting the step for verification, and report the results alongside.
 |---|---|---|---|
 | `backend/` | `pytest` for logic (classification parsing, retrieval ranking) | `TestClient`/`httpx` for endpoints | **Claude API calls are mocked in CI** — never live-call in automated tests |
 | `edge/` | `vitest` + `@cloudflare/vitest-pool-workers` | local `wrangler dev` smoke test | Run before every deploy |
-| `web/` | component/interaction tests | manual cross-browser check | WebLLM widget needs a real browser |
+| `web/` | component/interaction tests | manual cross-browser check | Project finder widget needs a real browser |
 | `mobile/` | widget tests, API client unit tests | `flutter test` in CI | |
 | `infra/` | `shellcheck` + idempotency (run twice, no errors, no dupes) | `/health` smoke test after every deploy | |
 

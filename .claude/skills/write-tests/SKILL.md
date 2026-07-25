@@ -70,9 +70,10 @@ Framework isn't chosen until Step 3.1, so the runner isn't either — Vitest or 
 from that decision.
 
 - Test form validation and submit wiring, and chat widget request/response handling.
-- For the WebLLM summariser, automated tests cover **state transitions** — idle → loading →
-  ready → error — and the unsupported-browser path. Actual inference is verified manually in a
-  real browser; document the load time when you do.
+- For the on-device project finder, automated tests cover **state transitions** — idle → loading →
+  ready → error — and the ranking logic itself: given a query embedding and known project vectors,
+  the closer one wins. Actual matching is verified manually in a real browser; document the load
+  time when you do.
 - Assert the model download never starts without an explicit click.
 
 ### `mobile/` — flutter test

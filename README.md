@@ -12,7 +12,7 @@ content of the portfolio.
 
 | Layer | Where it runs | What it does |
 |---|---|---|
-| **Browser** | Visitor's own device | On-device LLM summarises my experience via WebLLM — no network round-trip, no API cost |
+| **Browser** | Visitor's own device | On-device model (transformers.js) matches a question to my real projects — no network round-trip, no API cost |
 | **Edge** | Cloudflare Workers AI | Pre-filters/classifies contact form submissions for spam before they reach the backend |
 | **Server** | Oracle Cloud VM (Ampere A1, 2 OCPU / 12 GB) | RAG chatbot — embeddings + vector store — answers questions about my experience |
 | **Cloud API** | Anthropic Claude API | Contact form triage (classify, extract, draft reply) + RAG generation |
@@ -24,7 +24,7 @@ platform's built-in AI (Apple Foundation Models on iOS, Gemini Nano / ML Kit Gen
 
 ```
 ai-portfolio/
-├── web/          # One-pager: scroll animations, chat widget, WebLLM summariser
+├── web/          # One-pager: scroll animations, chat widget, on-device project finder
 ├── mobile/       # Flutter app
 ├── backend/      # FastAPI: contact triage + RAG chatbot
 │   ├── app/
@@ -44,7 +44,7 @@ ai-portfolio/
 | Vector store | SQLite-vec |
 | Embeddings | `sentence-transformers/all-MiniLM-L6-v2` |
 | Contact triage / RAG generation | Claude API |
-| Browser on-device model | WebLLM (MLC-quantised small instruct model) |
+| Browser on-device model | transformers.js — all-MiniLM-L6-v2 (ONNX, embeddings only — retrieval, not generation) |
 | Mobile on-device model | `flutter_local_ai` |
 | Edge pre-filter | Cloudflare Workers AI |
 | Reverse proxy / TLS | nginx + Let's Encrypt |
