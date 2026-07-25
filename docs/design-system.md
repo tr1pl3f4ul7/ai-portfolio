@@ -93,8 +93,9 @@ read as movement rather than as a flicker.
 - **Distance is what makes motion visible.** `--travel-rise` is 3.5rem (56px) and
   `--travel-slide` 2.5rem (40px). An earlier version used 1.25rem and was, correctly, reported as
   "no animation at all" — it was running perfectly and simply too small to see.
-- **Vary the axis.** Cards rise, rows and labels come in from the side, heading words slide up
-  from behind a mask. One repeated gesture down a long page reads as a template.
+- **Vary the axis.** Cards slide in from alternating sides, trace rows and labels come in from
+  the left, heading words slide up from behind a mask. One repeated gesture down a long page
+  reads as a template.
 - **Stagger with `--motion-stagger` (70ms)** multiplied by an index `motion.ts` sets on siblings.
 - Headings are split per word and masked; the words carry the movement, so the heading itself only
   fades — two transforms on one element fight.
@@ -111,6 +112,13 @@ scroll timeline and runs off the main thread. Apply it only to elements that do 
 entrance transition on `transform`, or the animation and the transition will fight. Elements on
 the same screen should move at *different* rates — that differential is the effect; moving
 everything together is just scrolling.
+
+**Reference a named view-timeline by its name alone** — `animation-timeline: --hero`, never
+`view(--hero)`. `view()` takes an axis and insets, not a name, so the named form is invalid, gets
+dropped, and `animation-timeline` silently falls back to the document timeline with a `0s`
+duration. The keyframe's *end* state then applies permanently: the hero sat at `opacity: 0.15`,
+translated up 80px, looking broken rather than unanimated. A dropped declaration is invisible
+until you read the computed style, so read it — that is what caught this.
 
 `web/src/styles/motion.css` holds all of it; `main.css` holds none.
 

@@ -126,15 +126,19 @@
     transform: none;
   }
 
-  /* Work cards travel further and scale up slightly — they are the densest
-     part of the page and benefit from arriving with some weight. */
+  /* Work cards slide in from the side — alternating edges so a long grid
+     doesn't read as one repeated gesture. */
   .js-motion .work-item {
     opacity: 0;
-    transform: translateY(var(--travel-rise)) scale(0.96);
+    transform: translateX(var(--travel-slide));
     transition:
       opacity var(--motion-entrance) var(--motion-easing),
       transform var(--motion-entrance) var(--motion-easing);
     transition-delay: calc(var(--i, 0) * var(--motion-stagger));
+  }
+
+  .js-motion .work-item:nth-child(even) {
+    transform: translateX(calc(var(--travel-slide) * -1));
   }
 
   .js-motion .work-item.is-revealed {
@@ -171,7 +175,7 @@
        its children animate — so it is free to carry this. */
     .hero-intro {
       animation: recede linear both;
-      animation-timeline: view(--hero);
+      animation-timeline: --hero;
       animation-range: exit 0% exit 100%;
     }
 
