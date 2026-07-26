@@ -191,6 +191,9 @@ in specific places:
   container: `cd backend/test && ./run-tests.sh`. A native `pytest` skips them.
 - **Flutter has no native Windows-on-Arm build.** The x64 SDK runs under emulation. Works, just
   slower.
+- **`workerd` (what `wrangler` and the edge Worker's test pool both run on) has no Windows-on-Arm
+  build at all** — `npm install` in `edge/` fails outright, not just at test time. Edge tests run
+  in a Linux container the same way: `cd edge/test && ./run-tests.sh`.
 - Shell is PowerShell 7+; a Bash tool is also available. They take different syntax.
 
 Installed toolchain: Python 3.12.10 (**use this**; 3.11.9 also present but `backend/` targets

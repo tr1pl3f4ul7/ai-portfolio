@@ -1339,12 +1339,139 @@ runs on WASM, and that whole branch of complexity was deleted along with it.
   is fast enough on any real connection that the original motivation — a visitor stuck waiting
   minutes for something they no longer want — mostly no longer applies. Revisit if a slow-connection
   visitor reports otherwise.
-- The matched project is highlighted (`.work-item.is-matched`, `--color-signal` outline) and
-  scrolled into view, so the browser layer's result visibly lands on the same real content the
-  visitor can already see and read — a stronger demonstration than a disconnected text output.
+- The matched project is highlighted (`.work-item.is-matched`, `--color-signal` outline), so the
+  browser layer's result visibly lands on the same real content the visitor can already see and
+  read — a stronger demonstration than a disconnected text output. An earlier version also
+  scrolled the match into view; dropped after live testing found it disorienting — a visitor
+  mid-read in this section shouldn't get yanked elsewhere without asking.
 - `web/CLAUDE.md`, root `CLAUDE.md`, `README.md`, `mobile/CLAUDE.md`, and the `write-tests` skill
   are updated to describe the project finder rather than the summariser. `docs/PROJECT_PLAN.md`'s
   Step 3.3 wording is left as originally written, same convention as decisions 28 and 43.
+
+---
+
+## 45. Edge Worker tests run in a Linux container; workerd has no Windows ARM64 build
+
+**Date:** 2026-07-26
+**Status:** accepted
+
+**Context:** `npm install` in `edge/` fails outright on this Copilot PC: `workerd` — the runtime both
+`wrangler` and `@cloudflare/vitest-pool-workers` shell out to — throws `Unsupported platform:
+win32 arm64 LE` from its own install script. Unlike sqlite-vec (decision 26), this isn't a partial
+gap where native `pytest` still runs and only the affected tests skip — `npm install` cannot
+complete at all, so nothing in `edge/` runs natively here, not even a `--dry-run`.
+
+This is the fifth ARM64 packaging trap on this project, after torch (8), the Flutter SDK (9),
+`httptools` (25) and `sqlite-vec` (26).
+
+**Decision:** Run the edge test suite inside a Linux container, exactly the pattern
+`backend/test/` already uses for sqlite-vec: `edge/test/Dockerfile` builds a `node:24-slim` image
+with `npm install` baked in (workerd's `linux/arm64` binary resolves fine there), and
+`edge/test/run-tests.sh` bind-mounts the source with an anonymous volume over `node_modules` so
+the image's Linux-built dependencies aren't shadowed by whatever — or nothing — sits in the
+host's own `node_modules`. `package-lock.json` is generated inside the container and copied back
+out to commit, since a lockfile resolved on Windows would be missing the platform-specific
+optional dependencies entirely.
+
+Also needed: `@cloudflare/vitest-pool-workers`'s `cloudflareTest()` plugin starts a live remote
+proxy connection to Cloudflare merely from `wrangler.toml` declaring an `[ai]` binding — Workers AI
+has no local simulation, so the pool tries to authenticate against the real service before a
+single test runs, and fails non-interactively without `CLOUDFLARE_API_TOKEN`. Set
+`remoteBindings: false` in `vitest.config.ts`: nothing in this suite touches the pool-injected
+`env` at all (edge/CLAUDE.md's own rule — classification stays pure and separately testable —
+means every test builds its own fake `env` and calls `worker.fetch()` directly), so the real
+binding was never needed for these tests in the first place.
+
+**Rejected:**
+- *Skip edge/ testing on the dev machine, same as sqlite-vec's `importorskip` pattern.* Not
+  available here — sqlite-vec's failure is a Python import-time error inside an otherwise-working
+  interpreter; `workerd`'s is a fatal `npm install` failure that stops the whole package from
+  existing locally. There's no partial state to skip from.
+- *Install workerd's x64 build under Windows' x64 emulation, mirroring decision 9's Flutter SDK
+  workaround.* npm's package resolution picks the platform-tagged optional dependency matching
+  `process.platform`/`process.arch` of the Node binary actually running the install, not an
+  emulation layer beneath it — there is no x64 Node install on this machine to invoke it from, and
+  adding one just to route around a single package felt like more permanent surface than a
+  container that already exists for exactly this class of problem.
+
+**Consequences:**
+- Before presenting any edge/ work for verification: `cd edge/test && ./run-tests.sh`, matching
+  `backend/test/run-tests.sh`'s existing convention exactly.
+- `edge/vitest.config.ts` documents the `remoteBindings: false` reasoning inline, so a future
+  binding that genuinely needs the pool-injected `env` (and therefore real remote access) doesn't
+  get silently broken by copying this file without reading the comment.
+- The actual `wrangler dev` live smoke test the plan requires (Step 4.1's manual clean/spam
+  verification) still needs real Cloudflare Workers AI enabled and `wrangler` authenticated — the
+  container only covers the pure unit-test layer, not that step.
+
+---
+
+## 46. Edge classifier model: `@cf/meta/llama-3.1-8b-fast-v2`, not `llama-3.2-1b-instruct`
+
+**Date:** 2026-07-26
+**Status:** accepted
+
+**Context:** Running Step 4.1's required manual smoke test (`edge/CLAUDE.md`, decision 45's
+consequences) surfaced two real bugs, both only visible once the test was actually exercised for
+real rather than trusted from a prior report:
+
+1. `edge/test/Dockerfile`'s `node:24-slim` base has no CA certificate bundle at all — confirmed
+   with `dpkg -l | grep ca-cert` and `ls /etc/ssl/certs/ca-certificates.crt` inside the running
+   container, both empty. Every `env.AI.run()` call therefore failed TLS validation
+   (`kj/compat/tls.c++:269: TLS peer's certificate is not trusted`), and `classify()`'s intentional
+   fail-open (`edge/CLAUDE.md`: "Fail open, not closed") silently turned every submission "clean"
+   regardless of content. A prior smoke-test pass reported in this same step was invalid — it
+   never exercised classification at all, only the fail-open path.
+2. With certs fixed, `@cf/meta/llama-3.2-1b-instruct` answered backwards on both of the plan's own
+   representative test cases — a plain hiring enquiry classified `SPAM`, an obvious SEO/casino/crypto
+   blast classified `CLEAN` — reproduced four times for consistency (`temperature: 0` makes this
+   deterministic per input, not evidence either way of general reliability) and confirmed against
+   Cloudflare's raw Workers AI REST API directly, bypassing the Worker entirely, to rule out a bug
+   in `classify.ts`'s own parsing or prompt-construction code. One prompt-engineering attempt
+   (few-shot examples) fixed the hiring-enquiry case but caused the model to refuse the casino/crypto
+   case outright (`"I cannot provide a"`), which the existing "does the reply start with SPAM"
+   parse also treats as `clean` — no net improvement.
+
+**Decision:** Swap the classifier model to a Workers AI 8B-class instruct model, keeping the
+existing system prompt and parsing logic unchanged (both are known to work — decision 45's
+container/pool setup already unit-tests `classify()`'s pure logic against a mocked `AiRunner`).
+The specific model ID needed a second correction: `@cf/meta/llama-3.1-8b-instruct` returns correct
+results over the raw REST API (which silently aliases deprecated IDs to their replacement) but
+throws inside the `env.AI` Workers binding itself — `5028: This model was deprecated on
+2026-05-30. Please use an alternative model.` — caught by `classify()`'s fail-open catch block,
+so every submission again went silently "clean" with no visible error until a temporary
+`console.error` in the catch block surfaced it. The REST API's own responses named the model that
+actually served the request — `@cf/meta/llama-3.1-8b-fast-v2` — so that's the ID now pinned in
+`edge/src/classify.ts`. Repeated smoke-test rounds after the fix showed correct, consistent
+classification on both the original and a second worded-differently hiring enquiry, and on a
+repeat of the casino/crypto spam message.
+
+**Rejected:**
+- *Keep the 1B model and iterate further on the prompt.* The one attempt made traded one failure
+  mode (backwards classification) for another (outright refusal on the clearest spam example) with
+  no net gain, for a model this project's own `edge/CLAUDE.md` already flags as "small and will be
+  wrong sometimes." An 8B model's cost is still tiny for a low-volume portfolio contact form.
+- *Add a deterministic keyword pre-filter in front of the AI call.* Would have removed reliance on
+  the small model for the obvious cases, but adds a second piece of classification logic to
+  maintain and tune (keyword lists rot) for a problem the 8B model solved outright with the
+  existing prompt, unchanged.
+
+**Consequences:**
+- `edge/src/classify.ts`'s `MODEL` constant is now `@cf/meta/llama-3.1-8b-fast-v2`; the existing
+  unit test (`test/classify.test.ts`) asserts against the exported `MODEL` constant rather than a
+  hardcoded string, so it needed no change.
+- Workers AI model IDs used via the `env.AI` binding can be deprecated and start throwing without
+  warning at the REST-API layer, since Cloudflare aliases deprecated IDs there but not inside the
+  binding. A model swap in `edge/` should re-run the live `wrangler dev` smoke test, not just the
+  mocked unit suite, to catch this class of failure — the unit tests cannot see it, since they
+  mock `AiRunner` entirely.
+- The plan's Step 4.1 manual verify (LJ confirming correct routing) is still outstanding: the
+  backend's own real per-IP daily rate limit (5 requests/day, decision TBD) was exhausted by this
+  step's repeated testing against the live Oracle VM, so the final "clean submission actually
+  reaches the backend" hop currently returns the backend's own 429 rather than a success response.
+  This is expected and unrelated to classifier correctness — the classification itself (clean vs.
+  spam, and spam's early-return-without-forwarding behaviour) was fully confirmed via container
+  logs and response shapes.
 
 ---
 

@@ -1,0 +1,15 @@
+# No secrets in this file — it's committed. Local dev vars go in .dev.vars
+# (gitignored); production vars/secrets are set with `wrangler secret put`.
+
+name = "ai-portfolio-contact-filter"
+main = "src/index.ts"
+compatibility_date = "2026-07-20"
+
+[ai]
+binding = "AI"
+
+[vars]
+# The backend origin this Worker forwards clean submissions to. Same IP
+# web/vite.config.ts proxies to in dev — a public IP, not a secret. Phase 5
+# repoints this at the real domain once DNS cuts over.
+BACKEND_URL = "http://140.238.207.203"
