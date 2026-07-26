@@ -1985,3 +1985,4 @@ Not yet decided. Each will get a full entry when resolved.
 
 | Decision | Blocked on | Notes |
 |---|---|---|
+| **Scope `CLOUDFLARE_API_TOKEN`'s Workers Routes:Edit permission down to just the `ljubenvassilev.com` zone** | LJ finding the per-zone scoping control in Cloudflare's token editor | Added as All Zones on 2026-07-26 to unblock `edge-deploy.yml` (needed to reconcile the Custom Domain route on every deploy) — broader than necessary, works for now. |
