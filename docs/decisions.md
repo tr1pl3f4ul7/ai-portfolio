@@ -1475,6 +1475,53 @@ repeat of the casino/crypto spam message.
 
 ---
 
+## 47. Step 4.2's clean-forward verify deferred to after Step 5.1
+
+**Date:** 2026-07-26
+**Status:** accepted
+
+**Context:** `wrangler deploy` succeeded — the Worker is live at
+`https://ai-portfolio-contact-filter.tr1pl3f4ul7.workers.dev` — and the spam test case passes
+correctly against the deployed Worker (short-circuited with a synthetic receipt, backend never
+touched). The legit test case instead returned a Cloudflare edge error, `error code: 1003`, on the
+Worker's own `fetch()` subrequest to `env.BACKEND_URL`.
+
+Confirmed via Cloudflare's own support documentation: error 1003 ("Direct IP Access Not Allowed")
+fires because `wrangler.toml`'s `BACKEND_URL` is a bare IP literal
+(`http://140.238.207.203`) — Workers running on Cloudflare's real production network cannot
+`fetch()` a raw IP address, only a domain name. This is a platform-level restriction, not a bug:
+the backend itself is confirmed reachable and correctly configured (a direct `curl` from outside
+the Worker gets the real `/health` and `/contact` responses). It only surfaces now because
+`wrangler dev`'s local simulation doesn't route subrequests through Cloudflare's actual network,
+so this same `fetch()` call worked fine in Step 4.1's local smoke test — the deployed Worker is the
+first point in the plan where the request genuinely leaves Cloudflare's edge, hence the first place
+this restriction can bite.
+
+**Decision:** Leave `BACKEND_URL` as the bare IP for now and defer the clean-submission
+live-verify to after Step 5.1 (DNS cutover), rather than inventing an interim domain to unblock it
+today. Step 4.2 is the last step of Phase 4, and Step 5.1 immediately follows and is exactly the
+step that gives the backend a real domain name — the natural fix arrives one step later regardless
+of what's done here. Step 4.2 is otherwise complete: the Worker is deployed, and spam filtering
+(the actual point of this phase) is fully verified live. Once 5.1 lands, `BACKEND_URL` gets updated
+to the real domain and both live test cases get re-run end to end to confirm the whole path.
+
+**Rejected:**
+- *A temporary unproxied DNS-only A record just to unblock today's verify.* Would work, but adds
+  a throwaway DNS record to track and later clean up or reconcile with Step 5.1's real cutover, to
+  save all of one step's wait — LJ's call, declined in favour of just proceeding to 5.1.
+- *Pull Phase 5.1 forward and do the real Cloudflare DNS cutover now.* Skips ahead of the plan's
+  own sequencing (CLAUDE.md Principle 5) for a problem that resolves itself by reaching 5.1 in the
+  normal order.
+
+**Consequences:**
+- Step 4.2's `✅ VERIFY` is: the Worker is deployed, and the spam path is confirmed live. The
+  clean-forward path stays unverified against the real backend until Step 5.1 is done.
+- `edge/wrangler.toml`'s `BACKEND_URL` must change from the bare Oracle IP to the real production
+  domain as part of Step 5.1's own work, not as a separate follow-up — Phase 5's DNS cutover is now
+  a hard functional dependency for the edge Worker, not just a cosmetic domain swap.
+
+---
+
 ## Open decisions
 
 Not yet decided. Each will get a full entry when resolved.
