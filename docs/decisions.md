@@ -1886,6 +1886,88 @@ ruff asks for, not a behaviour change. Verified: the full 159-test suite still p
 
 ---
 
+## 54. Cloudflare Pages project `ai-portfolio-web`, bound to the apex and `www`, replacing the old free-hosting DNS
+
+**Date:** 2026-07-26
+**Status:** accepted
+
+**Context:** Step 6.3 needed `web-deploy.yml`. Decision 48 had already chosen Cloudflare Pages
+over GitHub Pages or the VM, but left the apex domain's actual DNS untouched, since nothing had
+built the Pages project yet. The apex and `www` still carried the pre-existing A records to
+whatever free host (Epizy/InfinityFree) the domain used before this project — flagged in decision
+48 as something Phase 6 would need to replace.
+
+Checked what those records were actually serving before touching them: `curl`-ing
+`https://ljubenvassilev.com` through its real, live Cloudflare-proxied path returned HTTP 526
+("Invalid SSL Certificate") — Cloudflare's edge already couldn't establish a trusted connection to
+that origin. The apex was not successfully serving anything today, proxied or not.
+
+**Decision:** Created the Cloudflare Pages project `ai-portfolio-web` via the API
+(`production_branch: master`), confirmed the account's `CLOUDFLARE_API_TOKEN` does **not** have
+Pages permission yet (`wrangler pages project list` returned an authentication error) — LJ needs
+to add `Account / Cloudflare Pages / Edit` to the existing token via the dashboard, not create a
+new one, so the same value already used everywhere keeps working. Deleted the apex and `www` A
+records (confirmed already non-functional, per the 526 above) and bound both hostnames to the
+Pages project. Cloudflare Pages custom domains, unlike Workers Custom Domains, do **not**
+auto-create their own DNS record — the project's `/domains` endpoint returned `status:
+initializing` with `"CNAME record not set"` until a CNAME to `ai-portfolio-web.pages.dev` was
+created explicitly (Cloudflare's CNAME flattening makes this valid at a bare apex, unlike
+standards-compliant DNS elsewhere).
+
+**Rejected:** *Leave the apex DNS alone until LJ manually confirms what the old hosting was for.*
+Asked directly instead, given the 526 was concrete evidence nothing there currently works —
+LJ confirmed replacing it. MX records (email) are untouched; they're a completely separate record
+type from what web-serving DNS changes touch.
+
+**Consequences:**
+- `web-deploy.yml` cannot fully deploy until the Pages permission is added to the token — built and
+  committed regardless, so it's ready to test the moment that's done.
+- `web/src/config.ts`'s `VITE_API_BASE_URL`/`VITE_CONTACT_BASE_URL` are set directly in
+  `web-deploy.yml`'s `env:` block as plain values, not GitHub secrets — they're public production
+  URLs, not sensitive, the same class as `VITE_POSTHOG_HOST`.
+- If the Pages custom domain's `verification_data` still shows `"CNAME record not set"` well after
+  the CNAME was created, that's the same kind of Cloudflare-side propagation lag seen in Step 5.1's
+  zone activation — not necessarily a misconfiguration.
+
+## 55. Edge deploy's smoke test is spam-only, not clean-and-spam
+
+**Date:** 2026-07-26
+**Status:** accepted
+
+**Context:** `.github/CLAUDE.md` originally stated the edge smoke test should answer "both a clean
+and a spam payload," mirroring Step 4.1/5.2's manual verification. But a clean payload sent
+automatically on every `edge/**` push isn't a harmless check — the Worker genuinely forwards it to
+the backend, which stores it, triages it with a real Claude API call, and emails LJ a notification
+(decision 34's own "store before anything that can fail" design means the side effects are real
+and unconditional, not mockable from outside the backend). Asked LJ directly rather than build
+this silently, since it's LJ's inbox and Claude spend, not a purely technical call.
+
+**Decision:** The smoke test sends only the spam payload and checks for the correct
+`{"received": true, ...}` response shape — proving the Worker deployed correctly, parsed the
+payload, called Workers AI, and returned the right shape, entirely without touching the backend.
+It deliberately does **not** re-verify that the forward-to-backend path still works on every edge
+deploy; that was proven once, by hand, in Step 5.2, and nothing about a typical edge/** change
+(prompt tweaks, model swaps, validation logic) touches the forwarding `fetch()` call itself.
+
+**Rejected:**
+- *Test both paths, accept a real submission/email/API-call on every deploy.* Technically the most
+  complete coverage, but turns every edge code change into a real production side effect — LJ's
+  own call to make, and declined.
+- *Add a dry-run mode to the Worker so a "clean" test payload can be verified without a real
+  forward.* Would give full coverage without side effects, but changes the Worker's actual
+  contract/behavior to support a CI concern — a bigger change than this step's scope, worth
+  reconsidering later if the forward path starts changing often enough that Step 5.2's one-time
+  manual proof stops feeling sufficient.
+
+**Consequences:**
+- A regression that breaks specifically the forward-to-backend call (not the classification logic)
+  would not be caught by CI — only by another manual check like Step 5.2's, or the next real
+  contact submission.
+- `.github/CLAUDE.md`'s smoke-test rule and workflow table were updated to state this explicitly,
+  so a future edit doesn't "restore" the clean-payload check assuming its absence was an oversight.
+
+---
+
 ## Open decisions
 
 Not yet decided. Each will get a full entry when resolved.

@@ -1,0 +1,60 @@
+name: Deploy web
+
+# Builds the real production bundle (with Sentry/PostHog wired in, unlike
+# web-ci.yml's secret-free build) and deploys it to the Cloudflare Pages
+# project "ai-portfolio-web", bound to ljubenvassilev.com and www (decision
+# 48/54).
+on:
+  push:
+    branches: [master]
+    paths:
+      - "web/**"
+      - ".github/workflows/web-deploy.yml"
+
+concurrency:
+  group: deploy-web
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    env:
+      # Not secrets — real, public production URLs, same class as
+      # VITE_POSTHOG_HOST. Chat goes straight to the backend; contact goes to
+      # the edge Worker's own domain, never the backend directly (decision 48).
+      VITE_API_BASE_URL: https://api.ljubenvassilev.com
+      VITE_CONTACT_BASE_URL: https://contact.ljubenvassilev.com
+      VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
+      VITE_POSTHOG_KEY: ${{ secrets.VITE_POSTHOG_KEY }}
+      VITE_POSTHOG_HOST: ${{ secrets.VITE_POSTHOG_HOST }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Deploy to Cloudflare Pages
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx wrangler pages deploy dist --project-name=ai-portfolio-web --branch=master
+
+      - name: Post-deploy smoke test
+        run: curl -fsS --retry 5 --retry-delay 5 https://ljubenvassilev.com/ | grep -qi "<!doctype html"

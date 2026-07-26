@@ -13,8 +13,8 @@ to build (decision 50).
 | `edge-ci.yml` | `edge/**` | `tsc --noEmit` + `vitest`, directly on `ubuntu-latest` — same reasoning as backend-ci.yml |
 | `web-ci.yml` | `web/**` | `npm run build` + `vitest`, no secrets — the real secret-injected build happens in `web-deploy.yml` |
 | `backend-deploy.yml` | `backend/**`, `infra/deploy.sh`, `infra/nginx/**`, `infra/systemd/**` | `infra/deploy.sh` on the runner — full rsync + venv/vector-store rebuild + nginx/systemd install + restart, secrets from GitHub Actions written to the VM's env file (decision 52) |
-| `edge-deploy.yml` | `edge/**` | `wrangler deploy` |
-| `web-deploy.yml` | `web/**` | Cloudflare Pages (decision 48) |
+| `edge-deploy.yml` | `edge/**` | `wrangler deploy`, spam-only smoke test against `contact.ljubenvassilev.com` (decision 55) |
+| `web-deploy.yml` | `web/**` | Cloudflare Pages project `ai-portfolio-web`, bound to `ljubenvassilev.com` + `www` (decision 48/54) |
 | `mobile-build.yml` | `mobile/**` + tags | APK/IPA artefact + store publishing (Step 7.5, decision 42) |
 
 ## Rules
@@ -26,9 +26,12 @@ to build (decision 50).
   workflow declares `paths:` — and remember a workflow editing its own file needs that path
   filtered too, or it won't retrigger.
 - **Every deploy workflow ends with a post-deploy smoke test.** Backend → `/health` returns 200.
-  Edge → Worker URL answers both a clean and a spam payload. Web → the site actually serves.
-  A deploy step that reports success without verifying the target is live is worse than no
-  workflow, because it manufactures false confidence.
+  Edge → a spam payload against `contact.ljubenvassilev.com` gets the correct response shape,
+  deliberately spam-only rather than clean+spam — a clean payload really forwards to the backend
+  (a real Claude call, a stored submission, a real email to LJ) on every single deploy, which
+  decision 55 rejected as a smoke test's job. Web → the site actually serves. A deploy step that
+  reports success without verifying the target is live is worse than no workflow, because it
+  manufactures false confidence.
 - **Never live-call the Claude API in CI.** Mock it. CI runs on every push; a live call means
   paying for every commit and flaking whenever the API is slow.
 - **Secrets by name only, never inlined.** Reference `${{ secrets.NAME }}`. Never `echo` a
