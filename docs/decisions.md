@@ -1522,6 +1522,94 @@ to the real domain and both live test cases get re-run end to end to confirm the
 
 ---
 
+## 48. Domain split: api.ljubenvassilev.com for the backend, contact.ljubenvassilev.com for the Worker, apex reserved for Cloudflare Pages
+
+**Date:** 2026-07-26
+**Status:** accepted
+
+**Context:** Step 5.1 needed a real domain for `BACKEND_URL` (decision 47), and the plan's own
+wording ("A record → VM IP, proxied") reads as if the whole domain points at the VM. But
+`web/CLAUDE.md` already commits the static site to GitHub Pages or Cloudflare Pages, neither of
+which is the VM — pointing the apex at the VM now would have to be undone the moment Phase 7
+picks one. Separately, the frontend's `web/src/api.ts` used one shared `API_BASE_URL` for both
+`/chat` and `/contact`, but only `/contact` is meant to go through the edge Worker — if the
+Worker's own hostname were the same one its internal forward targets, that forward would re-match
+whatever rule put the Worker there in the first place and re-trigger itself (Cloudflare's own docs
+warn about exactly this: a Worker `fetch()`-ing its own bound hostname). Asked LJ directly whether
+serving the static site from the VM, GitHub Pages, or Cloudflare Pages was the better choice for a
+portfolio meant to demonstrate infra reasoning — see the "Rejected" alternatives below for that
+part of the discussion, and a separate detour into whether spreading across more cloud providers
+(AWS/GCP/Azure) would strengthen the story, declined for the same reason: it wouldn't demonstrate
+anything the current stack doesn't already, just more accounts to secure.
+
+**Decision:** Three-way split, all under the `ljubenvassilev.com` zone (already added to
+Cloudflare in Step 0.1):
+- `api.ljubenvassilev.com` — A record → the Oracle VM, proxied. Carries `/chat` directly and is
+  the target of the Worker's *own* forward to the real `/contact`. No Worker route of any kind
+  touches this hostname.
+- `contact.ljubenvassilev.com` — a Cloudflare Workers **Custom Domain** (not a path-scoped Route)
+  bound entirely to `ai-portfolio-contact-filter`. This is what the frontend's contact form
+  actually posts to. Because it's a wholly separate hostname from `api.`, the Worker's internal
+  forward can never loop back into itself.
+- The apex `ljubenvassilev.com` is left untouched for now, reserved for whichever static host
+  Phase 7 sets up.
+
+Cloudflare Pages was chosen over GitHub Pages or serving the static build from the VM itself,
+specifically for the portfolio's own sake: the VM option couples the marketing page's uptime to
+the backend's (no reason for a chat outage to take the homepage down too) and serves everything
+from one Sydney region with no CDN, working against `web/CLAUDE.md`'s own stated priority on page
+speed. GitHub Pages works but adds a second, unrelated CDN/TLS provider to reason about for no
+benefit, when the project already leans on Cloudflare for DNS, the edge Worker, and Workers AI —
+Pages completes that single-platform story rather than fragmenting it.
+
+`web/src/config.ts` now exports `API_BASE_URL` and `CONTACT_BASE_URL` separately (both still
+default to `/api` in dev, unchanged local proxy behaviour), and `web/src/api.ts`'s `postJson`
+takes an explicit base URL per call — `askQuestion` uses `API_BASE_URL`, `submitContact` uses
+`CONTACT_BASE_URL`. All 100 existing web tests passed unchanged, since they only assert the URL
+*contains* `/chat` or `/contact`, not the exact origin.
+
+**Rejected:**
+- *Serving the static site from the VM.* Couples two independent concerns (marketing page uptime,
+  backend uptime) for no benefit, and loses CDN distribution entirely — directly against
+  `web/CLAUDE.md`'s page-speed priority.
+- *GitHub Pages.* A perfectly normal choice in isolation, but adds a second CDN/TLS provider
+  alongside Cloudflare for no reason tied to this project's actual needs, fragmenting rather than
+  completing the platform story Workers/Workers AI already started.
+- *Spreading further across AWS, GCP, and Azure "to show multi-cloud skills."* Would not add any
+  capability the current stack lacks — every inference layer already has a deliberate, justified
+  home. More providers means more accounts, more IAM surface, and more billing relationships to
+  secure for a demonstration that "I can create accounts on many clouds," which isn't the same
+  claim as "I chose infrastructure deliberately." The real multi-provider story (Oracle + Cloudflare
+  + Anthropic, each picked for a specific reason) already exists without padding it.
+- *One shared `api.` hostname for both the Worker's public endpoint and its own internal forward,
+  scoped apart only by path (`/contact` vs the rest).* Technically possible with a path-scoped
+  Route instead of a Custom Domain, but leaves a standing footgun: the Worker's own outbound
+  `fetch()` to `${BACKEND_URL}/contact` would need to *never* match the very Route pattern that put
+  the Worker there, which is fragile to get right and easy to break by editing either side later
+  without noticing. A wholly separate hostname removes the possibility outright rather than relying
+  on the two patterns never colliding.
+
+**Consequences:**
+- `edge/wrangler.toml` carries a `[[routes]]` entry (`contact.ljubenvassilev.com`,
+  `custom_domain = true`) and `BACKEND_URL = "https://api.ljubenvassilev.com"`. Adding a route
+  also switched off the Worker's own `*.workers.dev` URL by Wrangler's default behaviour once any
+  route exists — expected for a Worker that now has a real domain, but means Step 4.1/4.2's
+  `*.workers.dev` test URL is no longer live for future ad hoc checks.
+- Production web builds now need **two** env vars, `VITE_API_BASE_URL` and
+  `VITE_CONTACT_BASE_URL`, wired up whenever Phase 7's CI/CD build step is built — not yet, since
+  that's Phase 7's own job.
+- Discovered while inspecting the zone: a pre-existing wildcard `*.ljubenvassilev.com` CNAME to a
+  domain-parking service (`11776.BODIS.com`), plus apex/`www` A records and an ACME-challenge CNAME
+  pointing at what looks like prior free hosting (Epizy/InfinityFree, matching the registrar-observed
+  `ns1/ns2.epizy.com`), and existing CAA/MX records — all left untouched as outside this step's
+  scope, but Phase 7 will need to replace the apex/`www` records when Cloudflare Pages takes over,
+  and should double check the wildcard doesn't shadow anything unexpected. Confirmed these don't
+  conflict with `api.`/`contact.` — an exact-name DNS record always wins over a wildcard for that
+  name — and confirmed Cloudflare already mirrors all of them, so the nameserver cutover itself
+  doesn't break whatever they currently serve.
+
+---
+
 ## Open decisions
 
 Not yet decided. Each will get a full entry when resolved.

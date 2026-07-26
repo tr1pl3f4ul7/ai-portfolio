@@ -9,7 +9,7 @@
  * and so failure handling lives in one place rather than in every caller.
  */
 
-import { API_BASE_URL, REQUEST_TIMEOUT_MS } from "./config";
+import { API_BASE_URL, CONTACT_BASE_URL, REQUEST_TIMEOUT_MS } from "./config";
 
 // --- Contract types (mirror backend/app/schemas.py) -------------------------
 
@@ -77,13 +77,13 @@ async function readDetail(response: Response): Promise<string | null> {
   }
 }
 
-async function postJson<T>(path: string, payload: unknown): Promise<T> {
+async function postJson<T>(baseUrl: string, path: string, payload: unknown): Promise<T> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
   let response: Response;
   try {
-    response = await fetch(`${API_BASE_URL}${path}`, {
+    response = await fetch(`${baseUrl}${path}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -114,10 +114,11 @@ async function postJson<T>(path: string, payload: unknown): Promise<T> {
 
 /** Ask the RAG chatbot. Retrieval on the VM, generation at the Claude API. */
 export function askQuestion(question: string): Promise<ChatResponse> {
-  return postJson<ChatResponse>("/chat", { question });
+  return postJson<ChatResponse>(API_BASE_URL, "/chat", { question });
 }
 
-/** Submit the contact form. Stored, triaged and notified server-side. */
+/** Submit the contact form. Goes to the edge Worker's own domain, not the
+ * backend directly — see config.ts. */
 export function submitContact(submission: ContactRequest): Promise<ContactResponse> {
-  return postJson<ContactResponse>("/contact", submission);
+  return postJson<ContactResponse>(CONTACT_BASE_URL, "/contact", submission);
 }

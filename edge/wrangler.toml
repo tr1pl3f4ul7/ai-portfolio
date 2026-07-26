@@ -8,8 +8,16 @@ compatibility_date = "2026-07-20"
 [ai]
 binding = "AI"
 
+# contact.ljubenvassilev.com is dedicated entirely to this Worker — a separate
+# hostname from BACKEND_URL below on purpose, so this Worker's own forward to
+# the real backend can never re-match this route and re-trigger itself
+# (decision 48). Requires the zone to be active; provisions on the next
+# `wrangler deploy` once DNS cutover (Step 5.1) completes.
+[[routes]]
+pattern = "contact.ljubenvassilev.com"
+custom_domain = true
+
 [vars]
-# The backend origin this Worker forwards clean submissions to. Same IP
-# web/vite.config.ts proxies to in dev — a public IP, not a secret. Phase 5
-# repoints this at the real domain once DNS cuts over.
-BACKEND_URL = "http://140.238.207.203"
+# The backend origin this Worker forwards clean submissions to. Not a secret.
+# api.ljubenvassilev.com has no Worker route of its own — see decision 48.
+BACKEND_URL = "https://api.ljubenvassilev.com"
