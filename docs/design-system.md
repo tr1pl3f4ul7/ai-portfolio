@@ -10,12 +10,12 @@ So both platform files are **generated**, and neither is ever hand-edited.
 design/tokens.json        <- edit this, and only this
         |
         +--> web/src/styles/tokens.css      CSS custom properties
-        +--> mobile/lib/theme/tokens.dart   Flutter (emitted from Phase 6)
+        +--> mobile/lib/theme/tokens.dart   Flutter (emitted from Phase 7)
 ```
 
 ```bash
 python design/generate.py           # write the outputs
-python design/generate.py --check   # fail if they are stale (CI, Phase 7)
+python design/generate.py --check   # fail if they are stale (CI, Phase 6)
 ```
 
 Changing a colour means editing `tokens.json`, regenerating, and committing both files together.

@@ -223,45 +223,53 @@ Each phase is broken into individual steps. Do not start step N+1 until step N's
 
 ---
 
-### Phase 6 — Flutter Mobile App
+### Phase 6 — CI/CD (GitHub Actions)
 
-**Step 6.1 — Scaffold + API client**
+Covers the three targets that already exist (backend, edge, web). Mobile's own CI/CD — including
+store publishing — is Step 7.5, once Phase 7 has actually built something to publish.
+
+**Step 6.1 — Secrets**
+- `🧑 MANUAL`: Add required secrets to GitHub repo settings — Claude Code lists exact names needed (see Section 5)
+- `✅ VERIFY`: LJ confirms secrets are added
+
+**Step 6.2 — CI workflows**
+- `🤖 CLAUDE CODE`: `backend-ci.yml` (lint/test on push to `backend/**`), `edge-ci.yml` (Worker tests on push to `edge/**`), `web-ci.yml` (vitest on push to `web/**`)
+- `🤖 CLAUDE CODE`: Test: push a trivial change to each path and confirm the right workflow triggers and passes
+- `✅ VERIFY`: LJ checks the Actions tab and confirms green runs
+
+**Step 6.3 — Deploy workflows**
+- `🤖 CLAUDE CODE`: `backend-deploy.yml` (SSH deploy + systemd restart, path-filtered), `edge-deploy.yml` (`wrangler deploy`), `web-deploy.yml` (Cloudflare Pages, per decision 48)
+- `🤖 CLAUDE CODE`: Test: each deploy workflow includes a post-deploy smoke test step (hit `/health`, hit Worker URL, hit static site)
+- `✅ VERIFY`: LJ triggers one real deploy per target and confirms each lands correctly
+
+---
+
+### Phase 7 — Flutter Mobile App
+
+**Step 7.1 — Scaffold + API client**
 - `🤖 CLAUDE CODE`: Scaffold Flutter app, build API client hitting `/contact` and `/chat`
 - `🤖 CLAUDE CODE`: Test: unit tests for the API client (mocked HTTP), widget tests for core screens
 - `✅ VERIFY`: LJ runs the app in a simulator/emulator and confirms it loads and can reach the live backend
 
-**Step 6.2 — On-device summarizer**
+**Step 7.2 — On-device summarizer**
 - `🤖 CLAUDE CODE`: Integrate `flutter_local_ai` with a small on-device model for on-device summarization
 - `🤖 CLAUDE CODE`: Test: widget test for the summarizer UI state (loading/result/error), manual check of actual inference output
 - `✅ VERIFY`: LJ triggers the summarizer on a real device/simulator and confirms it works without network access
 
-**Step 6.3 — Analytics and crash reporting**
+**Step 7.3 — Analytics and crash reporting**
 - `🧑 MANUAL`: Create Sentry Flutter project and PostHog project (or reuse web PostHog project as a separate environment), provide keys
 - `🤖 CLAUDE CODE`: Integrate `sentry_flutter` (crash/error reporting) and `posthog_flutter` (event tracking: screen views, chat used, summarizer used)
 - `🤖 CLAUDE CODE`: Test: widget test confirming events fire on key interactions (mocked SDKs); trigger a deliberate test crash manually
 - `✅ VERIFY`: LJ confirms the test crash appears in Sentry and a test event appears in PostHog
 
-**Step 6.4 — Store readiness (optional)**
-- `🧑 MANUAL`: Confirm whether Apple Developer / Google Play Developer accounts are in scope, provide them if so (not required just to produce a build artifact)
-- `✅ VERIFY`: only relevant if store submission is pursued
+**Step 7.4 — Store readiness**
+- `🧑 MANUAL`: Both the Apple App Store and Google Play are in scope (decision 42) — create the Apple Developer and Google Play Developer accounts, and gather what Step 7.5's automated publishing needs: an App Store Connect API key, an Apple signing certificate + provisioning profile, and a Google Play service-account JSON + upload keystore
+- `✅ VERIFY`: LJ confirms both accounts exist and the signing/publishing credentials are in hand
 
----
-
-### Phase 7 — CI/CD (GitHub Actions)
-
-**Step 7.1 — Secrets**
-- `🧑 MANUAL`: Add required secrets to GitHub repo settings — Claude Code lists exact names needed (see Section 5)
-- `✅ VERIFY`: LJ confirms secrets are added
-
-**Step 7.2 — CI workflows**
-- `🤖 CLAUDE CODE`: `backend-ci.yml` (lint/test on push to `backend/**`), Flutter test workflow, Worker test workflow
-- `🤖 CLAUDE CODE`: Test: push a trivial change to each path and confirm the right workflow triggers and passes
-- `✅ VERIFY`: LJ checks the Actions tab and confirms green runs
-
-**Step 7.3 — Deploy workflows**
-- `🤖 CLAUDE CODE`: `backend-deploy.yml` (SSH deploy + systemd restart, path-filtered), `edge-deploy.yml` (`wrangler deploy`), `web-deploy.yml`, `mobile-build.yml` (APK on tag)
-- `🤖 CLAUDE CODE`: Test: each deploy workflow includes a post-deploy smoke test step (hit `/health`, hit Worker URL, hit static site)
-- `✅ VERIFY`: LJ triggers one real deploy per target and confirms each lands correctly
+**Step 7.5 — Mobile CI/CD and store publishing**
+- `🤖 CLAUDE CODE`: `mobile-build.yml` — Flutter test + build APK/IPA on tag (path-filtered to `mobile/**`), publishing to the Google Play internal testing track and TestFlight using Step 7.4's credentials
+- `🤖 CLAUDE CODE`: Test: workflow produces a build artifact on a tag push; publishing step is dry-run against the internal/test track only, never production
+- `✅ VERIFY`: LJ confirms the build lands in both the Google Play internal testing track and TestFlight
 
 ---
 

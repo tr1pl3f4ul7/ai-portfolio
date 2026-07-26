@@ -1,7 +1,9 @@
 # .github/ — CI/CD
 
-Path-filtered workflows deploying one monorepo to **four independent targets**. Built in Phase 7;
-don't create these files earlier.
+Path-filtered workflows deploying one monorepo to **four independent targets**. Built in Phase 6
+for backend/edge/web, since that's what exists by then; don't create these files earlier.
+`mobile-build.yml` arrives later, with Phase 7's Step 7.5, once the Flutter app is actually there
+to build (decision 50).
 
 ## Workflows
 
@@ -10,8 +12,8 @@ don't create these files earlier.
 | `backend-ci.yml` | `backend/**` | lint + `pytest` |
 | `backend-deploy.yml` | `backend/**` | SSH to Oracle VM, restart systemd |
 | `edge-deploy.yml` | `edge/**` | `wrangler deploy` |
-| `web-deploy.yml` | `web/**` | GitHub Pages / Cloudflare Pages |
-| `mobile-build.yml` | `mobile/**` + tags | APK artefact |
+| `web-deploy.yml` | `web/**` | Cloudflare Pages (decision 48) |
+| `mobile-build.yml` | `mobile/**` + tags | APK/IPA artefact + store publishing (Step 7.5, decision 42) |
 
 ## Rules
 

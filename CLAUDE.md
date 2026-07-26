@@ -280,7 +280,7 @@ docker mcp oauth authorize github
 | GitHub | connected | `github-official`, OAuth — prefer over the `gh` CLI |
 | Sentry | not yet | Connect at Step 2.5 |
 | Cloudflare | not yet | Several servers; connect at Phase 4 |
-| Flutter/Dart | not yet | Connect at Phase 6 |
+| Flutter/Dart | not yet | Connect at Phase 7 |
 | **Docker** | **no server exists** | The catalog has no daemon-control server — `docker-docs` and `dockerhub` only. `docker mcp` is a *gateway* for running other servers, not a way to drive Docker. `infra/test/` uses the CLI, and needs `--privileged`, `--cgroupns=host` and `docker cp`, which no community server exposes |
 | **Oracle Cloud** | **none official** | Not in the catalog. Community OCI servers exist but would hold control-plane credentials for the tenancy — not worth the blast radius (Principle 6) |
 

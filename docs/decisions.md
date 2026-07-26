@@ -332,7 +332,7 @@ default had to be switched first.
 
 **Consequences:** No SHAs changed, so nothing was rewritten. **Every CI workflow must target
 `branches: [master]`** — a workflow pointed at `main` fires nothing and reports no error, so this
-is recorded in `.github/CLAUDE.md` ahead of Phase 7.
+is recorded in `.github/CLAUDE.md` ahead of Phase 6.
 
 ---
 
@@ -1029,13 +1029,13 @@ over the existing SSH key, then provisions the rest remotely (venv, `python -m a
 systemd unit, the nginx site, restart, `/health` smoke). No push, no clone.
 
 **Rejected:** *Push to GitHub and have the VM clone/pull.* It would force a push now — reversing the
-local-only stance — and, for a private repo, a deploy key on the VM. It also front-runs Phase 7,
+local-only stance — and, for a private repo, a deploy key on the VM. It also front-runs Phase 6,
 whose whole job is the path-filtered GitHub Actions pipeline. This first deploy is a bridge to that,
 not a substitute for it.
 
 **Consequences:**
 
-- Phase 7 replaces `deploy.sh` with CI/CD. Until then this is the deploy path, and it is manual by
+- Phase 6 replaces `deploy.sh` with CI/CD. Until then this is the deploy path, and it is manual by
   design — I run it and watch the output.
 - `deploy.sh` needs `rsync` on the VM; it is not in `setup.sh`'s package set, so the script
   installs it on first run (a guarded, one-off apt call).
@@ -1164,10 +1164,10 @@ product. The two clients cannot read each other's formats — CSS custom propert
 Dart.
 
 **Decision:** `design/tokens.json` is the single source of truth. `python design/generate.py`
-emits `web/src/styles/tokens.css` now, and `mobile/lib/theme/tokens.dart` from Phase 6 onwards
+emits `web/src/styles/tokens.css` now, and `mobile/lib/theme/tokens.dart` from Phase 7 onwards
 (the Dart target is skipped until `mobile/lib/` exists, so nothing is pre-created for an unreached
 phase). Both outputs are committed and neither is ever hand-edited. `--check` fails when they are
-stale, ready to wire into CI at Phase 7.
+stale, ready to wire into CI at Phase 6.
 
 **Rejected:** *An external design tool* (Figma, Penpot) as the source of truth — an account, a
 manual export on every change, and a source of truth living outside version control. *Hand-mirrored
@@ -1188,11 +1188,11 @@ twenty values around.
 **Date:** 2026-07-25
 **Status:** accepted — closes the "mobile store submission" open decision
 
-**Context:** Step 6.4 is written as optional and asks whether Apple Developer and Google Play
+**Context:** Step 7.4 is written as optional and asks whether Apple Developer and Google Play
 Developer accounts are in scope, since producing a build artefact does not require either.
 
 **Decision:** Both are in scope. The Flutter app ships to the **Apple App Store** and **Google
-Play** from the one codebase. Step 6.4 stops being optional.
+Play** from the one codebase. Step 7.4 stops being optional.
 
 **Rejected:** *Build artefacts only.* Enough to demonstrate the app runs, and free — but a
 published listing is materially stronger evidence than a `.apk` in a release page, and shipping
@@ -1530,7 +1530,7 @@ to the real domain and both live test cases get re-run end to end to confirm the
 **Context:** Step 5.1 needed a real domain for `BACKEND_URL` (decision 47), and the plan's own
 wording ("A record → VM IP, proxied") reads as if the whole domain points at the VM. But
 `web/CLAUDE.md` already commits the static site to GitHub Pages or Cloudflare Pages, neither of
-which is the VM — pointing the apex at the VM now would have to be undone the moment Phase 7
+which is the VM — pointing the apex at the VM now would have to be undone the moment Phase 6
 picks one. Separately, the frontend's `web/src/api.ts` used one shared `API_BASE_URL` for both
 `/chat` and `/contact`, but only `/contact` is meant to go through the edge Worker — if the
 Worker's own hostname were the same one its internal forward targets, that forward would re-match
@@ -1552,7 +1552,7 @@ Cloudflare in Step 0.1):
   actually posts to. Because it's a wholly separate hostname from `api.`, the Worker's internal
   forward can never loop back into itself.
 - The apex `ljubenvassilev.com` is left untouched for now, reserved for whichever static host
-  Phase 7 sets up.
+  Phase 6 sets up.
 
 Cloudflare Pages was chosen over GitHub Pages or serving the static build from the VM itself,
 specifically for the portfolio's own sake: the VM option couples the marketing page's uptime to
@@ -1596,13 +1596,13 @@ takes an explicit base URL per call — `askQuestion` uses `API_BASE_URL`, `subm
   route exists — expected for a Worker that now has a real domain, but means Step 4.1/4.2's
   `*.workers.dev` test URL is no longer live for future ad hoc checks.
 - Production web builds now need **two** env vars, `VITE_API_BASE_URL` and
-  `VITE_CONTACT_BASE_URL`, wired up whenever Phase 7's CI/CD build step is built — not yet, since
-  that's Phase 7's own job.
+  `VITE_CONTACT_BASE_URL`, wired up whenever Phase 6's CI/CD build step is built — not yet, since
+  that's Phase 6's own job.
 - Discovered while inspecting the zone: a pre-existing wildcard `*.ljubenvassilev.com` CNAME to a
   domain-parking service (`11776.BODIS.com`), plus apex/`www` A records and an ACME-challenge CNAME
   pointing at what looks like prior free hosting (Epizy/InfinityFree, matching the registrar-observed
   `ns1/ns2.epizy.com`), and existing CAA/MX records — all left untouched as outside this step's
-  scope, but Phase 7 will need to replace the apex/`www` records when Cloudflare Pages takes over,
+  scope, but Phase 6 will need to replace the apex/`www` records when Cloudflare Pages takes over,
   and should double check the wildcard doesn't shadow anything unexpected. Confirmed these don't
   conflict with `api.`/`contact.` — an exact-name DNS record always wins over a wildcard for that
   name — and confirmed Cloudflare already mirrors all of them, so the nameserver cutover itself
@@ -1664,6 +1664,56 @@ open in Step 4.2.
   different filters. Not investigated further since the backend's own journal gave a more
   direct, sufficient answer for this step's purposes, but worth revisiting if Worker-side log
   visibility is ever actually needed.
+
+---
+
+## 50. Phases 6 and 7 swapped: CI/CD before the Flutter app, mobile gets its own CI/CD step
+
+**Date:** 2026-07-26
+**Status:** accepted
+
+**Context:** The plan originally ran Phase 6 (Flutter Mobile App) before Phase 7 (CI/CD). LJ asked
+to swap them — get CI/CD running for what already exists (backend, edge, web) before starting
+the mobile app, and fold mobile's own CI/CD, including store publishing, into the mobile phase
+itself once there's something to build and publish.
+
+**Decision:** Phase 6 is now CI/CD, scoped to only the three targets that exist by then:
+`backend-ci.yml`, `edge-ci.yml`, `web-ci.yml` (added — the original plan's CI step never actually
+covered `web/`, an oversight this reorder surfaced), `backend-deploy.yml`, `edge-deploy.yml`, and
+`web-deploy.yml` (Cloudflare Pages, decision 48). Phase 7 is now the Flutter Mobile App, with a
+new Step 7.5 — Mobile CI/CD and store publishing — added after the existing scaffold/summarizer/
+analytics/store-readiness steps, covering `mobile-build.yml` (test, build, and publish to the
+Google Play internal track and TestFlight) once Step 7.4's developer accounts and signing
+credentials are in place.
+
+This ordering also resolves a structural problem the original order didn't have to face yet: a
+"Flutter test workflow" and `mobile-build.yml` can't meaningfully exist in a CI/CD phase that runs
+before the Flutter app itself does. Building mobile's CI/CD as part of the mobile phase, right
+after the app exists and store readiness is confirmed, means Step 7.5 is building automation
+against real, already-written code — the same pattern this project already uses everywhere else
+(edge's Worker was built and locally verified before Step 4.2 deployed it; the backend was built
+and tested before Step 2.6 put it on the VM).
+
+Corrected every cross-reference to the old phase numbers accordingly: `.github/CLAUDE.md`,
+`CLAUDE.md`'s MCP server table, `docs/design-system.md`, and every phase-number mention across
+decisions 14, 37, 41, and 47–49 (this decision log's own historical entries) — decision 42's
+references to "Phase 7" for the macOS-runner confirmation and signing secrets needed no change,
+since Step 7.5 now supplies exactly that within the (renumbered) mobile phase itself. Also fixed
+decision 42's own now-stale `Step 6.4` references to `Step 7.4`, and removed the "(optional)" /
+"if pursued" framing that decision 42 had already overridden by settling both app stores as in
+scope — a pre-existing inconsistency this pass happened to surface, not something introduced by
+the reorder itself.
+
+**Rejected:** *Leave the phase numbers as-is and just reorder the work informally.* Would leave
+`docs/PROJECT_PLAN.md` — "the governing document" per its own description — actively describing a
+sequence nobody is following, which defeats the entire point of a written plan.
+
+**Consequences:**
+- Section 6 (secrets checklist) and Section 6 "Definition of Done" needed no changes — both are
+  already phase-agnostic, listing outcomes and credentials rather than referencing phase numbers.
+- Any future reference to "Phase 6" now means CI/CD, and "Phase 7" means the mobile app — the
+  opposite of what those numbers meant before this decision. A reader relying on memory rather
+  than the current file is exactly the failure mode this entry exists to prevent.
 
 ---
 
