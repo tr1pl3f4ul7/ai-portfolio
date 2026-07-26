@@ -124,6 +124,12 @@ a {
   padding-top: var(--space-5);
 }
 
+.hero-intro {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
 .hero .trace {
   margin-top: var(--space-3);
 }
