@@ -1817,10 +1817,16 @@ Cloudflare's edge TLS, and the origin certificate together, on every single depl
   internal nginx health check (step 2h) still curled plain `http://127.0.0.1/health`, unchanged
   since before Step 5.2. Port 80 now redirects to 443 rather than proxying directly, so that check
   had quietly degraded into "did nginx return a redirect" — still exit-0, still logged as a pass,
-  no longer actually testing what it claimed to. Now uses `--resolve
-  api.ljubenvassilev.com:443:127.0.0.1` against the real HTTPS path, validating the origin
-  certificate end to end while staying local. Nothing had exercised this check since Step 5.2
-  shipped, which is exactly how it went unnoticed.
+  no longer actually testing what it claimed to. Fixed to `--resolve
+  api.ljubenvassilev.com:443:127.0.0.1` against the real HTTPS path — but the *first* fix was
+  itself wrong in a way nothing caught until `backend-deploy.yml`'s actual first live run: a plain
+  `curl` against nginx's Cloudflare Origin CA certificate (decision 49) always fails trust
+  validation, since no system CA bundle trusts that CA — only Cloudflare's edge does. Added `-k`
+  with a comment explaining why it's deliberate: this check's job is "does nginx terminate TLS and
+  proxy to uvicorn," not "is the cert publicly trusted" — the workflow's separate post-deploy smoke
+  test already covers real trust validation, against the public domain through Cloudflare's actual
+  edge, with no `-k`. Nothing had exercised either version of this check between Step 5.2 shipping
+  and this step's first real deploy run, which is exactly how both went unnoticed until then.
 
 ---
 

@@ -278,9 +278,17 @@ fi
 # Port 80 now redirects to 443 (Step 5.2) rather than proxying directly, so a
 # plain http:// check here would just follow a redirect and report success
 # without ever exercising nginx's real path. --resolve keeps the request
-# local while still sending the Host/SNI the origin certificate was issued
-# for, so this actually validates TLS end to end rather than skipping it.
-if curl -fsS --max-time 10 --resolve api.ljubenvassilev.com:443:127.0.0.1 \
+# local while still sending the Host/SNI the certificate was issued for.
+#
+# -k is deliberate, not laziness: nginx presents the Cloudflare Origin CA
+# certificate (decision 49), which only Cloudflare's edge is meant to trust —
+# no system CA bundle validates it, so a plain curl here would always fail on
+# a correctly-configured deploy. This check's job is "does nginx terminate
+# TLS and proxy to uvicorn," not "is the cert publicly trusted" — that's what
+# the workflow's separate post-deploy smoke test already verifies, against
+# the real public domain through Cloudflare's actual edge, with real trust
+# validation and no -k.
+if curl -fsSk --max-time 10 --resolve api.ljubenvassilev.com:443:127.0.0.1 \
      https://api.ljubenvassilev.com/health >/dev/null; then
   say "nginx proxies /health on port 443"
 else
