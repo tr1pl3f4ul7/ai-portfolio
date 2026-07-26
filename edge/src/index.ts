@@ -23,6 +23,27 @@ const LOOKS_LIKE_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const JSON_HEADERS = { "content-type": "application/json" };
 
+// The web frontend calls this Worker from a different origin in production
+// (ljubenvassilev.com vs contact.ljubenvassilev.com — decision 48's domain
+// split). Without this, every browser fetch() fails with a generic "Failed
+// to fetch" the browser never explains further, even though curl (which
+// doesn't enforce CORS) works fine — mirrors backend/app/config.py's
+// ALLOWED_ORIGINS, same reasoning, same two origins.
+const ALLOWED_ORIGINS = new Set(["https://ljubenvassilev.com", "https://www.ljubenvassilev.com"]);
+
+function corsHeaders(origin: string | null): Record<string, string> {
+  if (!origin || !ALLOWED_ORIGINS.has(origin)) return {};
+  return { "access-control-allow-origin": origin, vary: "Origin" };
+}
+
+/** Re-wraps a response with CORS headers merged in — used for every return
+ * path, including the one forwarded verbatim from the backend. */
+function withCors(response: Response, origin: string | null): Response {
+  const headers = new Headers(response.headers);
+  for (const [key, value] of Object.entries(corsHeaders(origin))) headers.set(key, value);
+  return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
+}
+
 /**
  * Cheap rejection before any model call — missing fields, absurd lengths and
  * malformed bodies get rejected without spending inference (edge/CLAUDE.md).
@@ -49,26 +70,42 @@ function syntheticReceipt(): Response {
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
-    if (request.method !== "POST") {
-      return new Response(JSON.stringify({ error: "Method not allowed" }), {
-        status: 405,
-        headers: JSON_HEADERS,
+    const origin = request.headers.get("Origin");
+
+    if (request.method === "OPTIONS") {
+      return new Response(null, {
+        status: 204,
+        headers: {
+          ...corsHeaders(origin),
+          "access-control-allow-methods": "POST",
+          "access-control-allow-headers": "content-type",
+        },
       });
+    }
+
+    if (request.method !== "POST") {
+      return withCors(
+        new Response(JSON.stringify({ error: "Method not allowed" }), { status: 405, headers: JSON_HEADERS }),
+        origin,
+      );
     }
 
     let body: unknown;
     try {
       body = await request.json();
     } catch {
-      return new Response(JSON.stringify({ error: "Invalid JSON" }), { status: 400, headers: JSON_HEADERS });
+      return withCors(
+        new Response(JSON.stringify({ error: "Invalid JSON" }), { status: 400, headers: JSON_HEADERS }),
+        origin,
+      );
     }
 
     const submission = validate(body);
     if (!submission) {
-      return new Response(JSON.stringify({ error: "Invalid submission" }), {
-        status: 400,
-        headers: JSON_HEADERS,
-      });
+      return withCors(
+        new Response(JSON.stringify({ error: "Invalid submission" }), { status: 400, headers: JSON_HEADERS }),
+        origin,
+      );
     }
 
     const classification = await classify(env.AI, submission);
@@ -77,13 +114,14 @@ export default {
     console.log(`contact submission classified as ${classification}`);
 
     if (classification === "spam") {
-      return syntheticReceipt();
+      return withCors(syntheticReceipt(), origin);
     }
 
-    return fetch(`${env.BACKEND_URL}/contact`, {
+    const forwarded = await fetch(`${env.BACKEND_URL}/contact`, {
       method: "POST",
       headers: JSON_HEADERS,
       body: JSON.stringify(submission),
     });
+    return withCors(forwarded, origin);
   },
 };

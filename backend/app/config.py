@@ -142,6 +142,26 @@ CONTACT_NOTIFY_TO = os.environ.get("CONTACT_NOTIFY_TO", "")
 CONTACT_NOTIFY_FROM = os.environ.get("AI_PORTFOLIO_CONTACT_FROM", "onboarding@resend.dev")
 
 # ---------------------------------------------------------------------------
+# CORS
+# ---------------------------------------------------------------------------
+
+# The web frontend and this API are different origins in production
+# (ljubenvassilev.com vs api.ljubenvassilev.com — decision 48's domain split),
+# so browser requests need an explicit allowlist or every fetch() fails with a
+# generic "Failed to fetch" the browser refuses to explain further. Local dev
+# never exercises this: Vite's dev proxy makes browser requests same-origin
+# (web/vite.config.ts). Comma-separated so a future origin can be added
+# without a code change.
+ALLOWED_ORIGINS = [
+    origin.strip()
+    for origin in os.environ.get(
+        "AI_PORTFOLIO_ALLOWED_ORIGINS",
+        "https://ljubenvassilev.com,https://www.ljubenvassilev.com",
+    ).split(",")
+    if origin.strip()
+]
+
+# ---------------------------------------------------------------------------
 # Error tracking (Sentry)
 # ---------------------------------------------------------------------------
 

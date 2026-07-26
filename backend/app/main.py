@@ -9,10 +9,15 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from app import notify, observability, rag, ratelimit, submissions, triage
-from app.config import CONTACT_DAILY_LIMIT_PER_IP, CONTACT_DAILY_LIMIT_TOTAL
+from app.config import (
+    ALLOWED_ORIGINS,
+    CONTACT_DAILY_LIMIT_PER_IP,
+    CONTACT_DAILY_LIMIT_TOTAL,
+)
 from app.schemas import (
     ChatRequest,
     ChatResponse,
@@ -62,6 +67,17 @@ app = FastAPI(
     description="RAG chatbot and contact triage for the AI showcase portfolio.",
     version="0.2.0",
     lifespan=lifespan,
+)
+
+# The web frontend calls this API from a different origin in production — see
+# config.ALLOWED_ORIGINS. Without this, every browser fetch() fails with a
+# generic "Failed to fetch" the browser never explains further, even though a
+# plain curl (which doesn't enforce CORS) works fine.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=ALLOWED_ORIGINS,
+    allow_methods=["POST"],
+    allow_headers=["content-type"],
 )
 
 

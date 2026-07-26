@@ -1977,6 +1977,56 @@ deploy; that was proven once, by hand, in Step 5.2, and nothing about a typical 
 - `.github/CLAUDE.md`'s smoke-test rule and workflow table were updated to state this explicitly,
   so a future edit doesn't "restore" the clean-payload check assuming its absence was an oversight.
 
+## 56. CORS was missing entirely — added an explicit origin allowlist to both the backend and the edge Worker
+
+**Date:** 2026-07-26
+**Status:** accepted
+
+**Context:** LJ reported the chat widget failing on the live site with "Couldn't reach the server.
+Check your connection." Reproduced directly in a real browser: `fetch('https://api.ljubenvassilev.com/chat', ...)`
+from a page loaded on `https://ljubenvassilev.com` threw a generic `TypeError: Failed to fetch` —
+browsers deliberately give JS no further detail on this class of failure. Confirmed the actual
+cause with `curl`, which does not enforce CORS and so isn't blind to it: an `OPTIONS` preflight
+against `/chat` returned `405 Method Not Allowed` with no `Access-Control-Allow-Origin` header at
+all, and even the real `POST` itself succeeded server-side (`200`, a genuine answer) but without
+that header either — the browser was correctly refusing to hand the response to page JS. No CORS
+middleware had ever been configured anywhere in the stack; every prior test of `/chat` and
+`/contact` was either server-to-server (`curl`, `TestClient`, one Worker fetching another) or the
+local dev proxy, which makes browser requests same-origin on purpose
+(`web/vite.config.ts`) — so this gap was invisible until the first real browser hit the first real
+production cross-origin request. The edge Worker's `contact.ljubenvassilev.com` had the identical
+gap for the same reason, confirmed the same way before it was ever reported.
+
+**Decision:** Added an explicit origin allowlist in both places, admitting exactly
+`https://ljubenvassilev.com` and `https://www.ljubenvassilev.com` — never a wildcard, since a
+contact/chat endpoint that spends real money per request (Claude API calls) and stores real data
+should not answer arbitrary origins.
+- Backend: `app.config.ALLOWED_ORIGINS` (comma-separated env var,
+  `AI_PORTFOLIO_ALLOWED_ORIGINS`, defaulting to the two production origins) wired in via Starlette's
+  `CORSMiddleware` in `app/main.py`, `allow_methods=["POST"]`. New `tests/test_cors.py` pins three
+  things: an allowed origin gets preflight approval, a disallowed one doesn't, and — the actual gap
+  that shipped — the *real* response carries the header too, not just the preflight.
+- Edge Worker: mirrored the same allowlist locally in `src/index.ts` (no shared config module to
+  put it in, unlike the backend), handling `OPTIONS` explicitly and wrapping every response path —
+  including the one forwarded verbatim from the backend — through a `withCors()` helper. New tests
+  in `test/index.test.ts` cover the same three cases, plus confirming CORS wrapping doesn't corrupt
+  the forwarded backend body.
+
+**Rejected:** *`allow_origins=["*"]`.* The simplest possible fix, and wrong for exactly this
+project: `/chat` spends a real Claude API call per request and `/contact` writes a real database
+row and sends a real email, both behind daily spend caps (decision 31) that a wildcard origin does
+nothing to protect from being exhausted by an unrelated site embedding a request to this API.
+
+**Consequences:**
+- Adding a future web origin (a staging domain, a different subdomain) means updating the allowlist
+  in **two** places now — `AI_PORTFOLIO_ALLOWED_ORIGINS` on the VM and the `ALLOWED_ORIGINS` set in
+  `edge/src/index.ts` — since the Worker has no shared config mechanism with the backend to draw
+  from.
+- This shipped to production without either allowlist ever being exercised by a real browser before
+  now — Step 5.2 and Step 6.3's own verification all used `curl`/`TestClient`/`wrangler dev`'s local
+  proxy, none of which enforce CORS. Worth remembering for future cross-origin work: a
+  same-origin-only test suite cannot catch a CORS gap, no matter how thorough.
+
 ---
 
 ## Open decisions

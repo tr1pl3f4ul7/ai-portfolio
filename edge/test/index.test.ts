@@ -140,3 +140,66 @@ describe("the fetch handler", () => {
     expect(response.status).toBe(200);
   });
 });
+
+describe("CORS", () => {
+  const ALLOWED = "https://ljubenvassilev.com";
+
+  function postFrom(origin: string, body: unknown = VALID): Request {
+    return new Request("https://worker.example.test/contact", {
+      method: "POST",
+      headers: { "content-type": "application/json", Origin: origin },
+      body: JSON.stringify(body),
+    });
+  }
+
+  it("approves a preflight from the allowed origin", async () => {
+    const request = new Request("https://worker.example.test/contact", {
+      method: "OPTIONS",
+      headers: {
+        Origin: ALLOWED,
+        "Access-Control-Request-Method": "POST",
+        "Access-Control-Request-Headers": "content-type",
+      },
+    });
+
+    const response = await worker.fetch(request, fakeEnv());
+
+    expect(response.status).toBe(204);
+    expect(response.headers.get("access-control-allow-origin")).toBe(ALLOWED);
+  });
+
+  it("does not approve a preflight from an unlisted origin", async () => {
+    const request = new Request("https://worker.example.test/contact", {
+      method: "OPTIONS",
+      headers: {
+        Origin: "https://evil.example.com",
+        "Access-Control-Request-Method": "POST",
+        "Access-Control-Request-Headers": "content-type",
+      },
+    });
+
+    const response = await worker.fetch(request, fakeEnv());
+
+    expect(response.headers.get("access-control-allow-origin")).toBeNull();
+  });
+
+  it("the spam receipt still carries the header — a preflight passing is not enough", async () => {
+    const response = await worker.fetch(postFrom(ALLOWED), fakeEnv("SPAM"));
+
+    expect(response.headers.get("access-control-allow-origin")).toBe(ALLOWED);
+  });
+
+  it("the forwarded backend response carries the header too", async () => {
+    const fetchMock = vi.fn(
+      async () => new Response(JSON.stringify({ received: true, reference: "abc123def456" }), { status: 200 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const response = await worker.fetch(postFrom(ALLOWED), fakeEnv("CLEAN"));
+
+    expect(response.headers.get("access-control-allow-origin")).toBe(ALLOWED);
+    // Forwarding still works exactly as before — CORS wrapping must not
+    // swallow the backend's real body.
+    expect(await response.json()).toEqual({ received: true, reference: "abc123def456" });
+  });
+});
