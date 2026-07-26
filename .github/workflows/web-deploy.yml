@@ -57,4 +57,18 @@ jobs:
         run: npx wrangler pages deploy dist --project-name=ai-portfolio-web --branch=master
 
       - name: Post-deploy smoke test
-        run: curl -fsS --retry 5 --retry-delay 5 https://ljubenvassilev.com/ | grep -qi "<!doctype html"
+        # A fresh custom domain binding can 522 for a short while after its
+        # very first deploy — curl's own --retry only retries a fixed set of
+        # standard HTTP codes (408/429/500/502/503/504), which doesn't
+        # include Cloudflare's own 522/524, so this loop can't rely on it.
+        run: |
+          for i in $(seq 1 12); do
+            if curl -fsS --max-time 10 https://ljubenvassilev.com/ 2>/dev/null | grep -qi "<!doctype html"; then
+              echo "Site is live"
+              exit 0
+            fi
+            echo "Attempt ${i}/12: not ready yet, retrying in 10s..."
+            sleep 10
+          done
+          echo "Site did not become available in time" >&2
+          exit 1

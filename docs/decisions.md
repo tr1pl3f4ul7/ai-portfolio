@@ -1928,6 +1928,17 @@ type from what web-serving DNS changes touch.
 - If the Pages custom domain's `verification_data` still shows `"CNAME record not set"` well after
   the CNAME was created, that's the same kind of Cloudflare-side propagation lag seen in Step 5.1's
   zone activation — not necessarily a misconfiguration.
+- Confirmed live: `web-deploy.yml`'s first real run built and deployed successfully, but its own
+  smoke test failed with a `522` — the fresh custom domain binding wasn't fully propagated across
+  Cloudflare's edge yet, seconds after its very first deploy. The real bug was the smoke test
+  itself: curl's `--retry` only retries a fixed set of standard HTTP codes
+  (408/429/500/502/503/504), which doesn't include Cloudflare's own 522/524, so `--retry 5
+  --retry-delay 5` never actually engaged. Replaced with an explicit bash retry loop (12 attempts,
+  10s apart) in both `web-deploy.yml` and `edge-deploy.yml` — the latter has the identical exposure
+  the moment its own custom domain is freshly touched, even though it hadn't failed this way yet.
+  `backend-deploy.yml`'s smoke test was left alone; `api.ljubenvassilev.com` has been live long
+  enough that this specific race isn't a live risk there, and it already has a real successful run
+  proving it works as written.
 
 ## 55. Edge deploy's smoke test is spam-only, not clean-and-spam
 

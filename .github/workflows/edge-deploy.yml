@@ -48,9 +48,18 @@ jobs:
         # without ever touching the backend; it does not re-verify the
         # forward-to-backend path itself, which Step 5.2 already confirmed
         # works and which nothing in edge/ has changed since.
+        #
+        # A retry loop, not curl's own --retry — that only retries a fixed set
+        # of standard HTTP codes (408/429/500/502/503/504), not Cloudflare's
+        # own 522/524 a freshly-touched custom domain can transiently return.
         run: |
-          body=$(curl -fsS --retry 5 --retry-delay 5 -X POST https://contact.ljubenvassilev.com \
-            -H "Content-Type: application/json" \
-            -d '{"name":"SEO Expert","email":"promo@cheap-backlinks-seo.biz","message":"BUY NOW!!! Get 10000 backlinks for only $9.99! CASINO CRYPTO FOREX guaranteed profits act now!!!"}')
-          echo "${body}"
-          echo "${body}" | grep -q '"received":true'
+          payload='{"name":"SEO Expert","email":"promo@cheap-backlinks-seo.biz","message":"BUY NOW!!! Get 10000 backlinks for only $9.99! CASINO CRYPTO FOREX guaranteed profits act now!!!"}'
+          for i in $(seq 1 12); do
+            body=$(curl -fsS --max-time 10 -X POST https://contact.ljubenvassilev.com \
+              -H "Content-Type: application/json" -d "${payload}" 2>/dev/null) && \
+              echo "${body}" | grep -q '"received":true' && { echo "${body}"; exit 0; }
+            echo "Attempt ${i}/12: not ready yet, retrying in 10s..."
+            sleep 10
+          done
+          echo "Worker did not respond correctly in time" >&2
+          exit 1
