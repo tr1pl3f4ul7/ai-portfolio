@@ -37,7 +37,12 @@ to build (decision 50).
 - **Secrets by name only, never inlined.** Reference `${{ secrets.NAME }}`. Never `echo` a
   secret, never put one in a step name or an artefact. Names are listed in §5 of
   `docs/PROJECT_PLAN.md`.
-- **Pin actions to a version.** `actions/checkout@v4`, not `@main`.
+- **Pin actions to a version.** `actions/checkout@v7`, not `@main` — but a pinned major version
+  isn't permanently current: `actions/checkout`, `actions/setup-node`, and `actions/setup-python`
+  each moved their underlying runtime from Node 20 to Node 24 in a **major** version bump (v4→v5
+  for the first two, v5→v6 for setup-python), not a patch release, so a run's own log is the
+  signal to watch — "Node.js 20 is deprecated... forced to run on Node.js 24" means the pinned
+  major version is stale, not that anything is actually broken yet.
 - **Least privilege**: set `permissions:` explicitly per workflow rather than inheriting the
   default token scope.
 - Concurrency-guard deploys so two pushes can't deploy over each other:

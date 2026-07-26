@@ -35,7 +35,7 @@ jobs:
       SENTRY_DSN: ${{ secrets.SENTRY_DSN_BACKEND }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Write the deploy SSH key
         run: |
