@@ -1610,10 +1610,66 @@ takes an explicit base URL per call — `askQuestion` uses `API_BASE_URL`, `subm
 
 ---
 
+## 49. TLS: Cloudflare edge TLS + Origin CA certificate, Full (strict) mode
+
+**Date:** 2026-07-26
+**Status:** accepted
+
+**Context:** Step 5.2 needed to resolve the TLS termination question left open since Step 1.2
+(certbot on the VM vs. a Cloudflare origin certificate). With `api.ljubenvassilev.com` and
+`contact.ljubenvassilev.com` both already proxied through Cloudflare (decision 48), certbot would
+only ever protect the Cloudflare-to-origin leg — visitors never touch the VM directly — while
+needing its own separate renewal automation (a cron/systemd timer) on top of what Cloudflare
+already manages automatically for everything else in front of it.
+
+**Decision:** Cloudflare's free Universal SSL terminates TLS for visitors automatically — no
+action needed once the zone activated. For the Cloudflare-to-VM leg, generated a 2048-bit RSA key
+and CSR locally (`openssl req`, in a scratch directory, never in the repo), submitted the CSR to
+Cloudflare's Origin CA API (`POST /certificates`, `origin-rsa`, 15-year validity — the certificate
+itself is only ever trusted by Cloudflare, so a long validity avoids needless rotation), and
+installed the resulting certificate and private key on the VM at `/etc/ssl/cloudflare/`
+(`root:root`, key `chmod 600`) — never committed, never round-tripped through this machine after
+installation. `infra/nginx/ai-portfolio.conf` now terminates TLS on 443 with that certificate and
+redirects 80→443; `ufw` already allowed 443 from Step 1.2. Set the zone's SSL/TLS mode to **Full
+(strict)** in the dashboard (the `cloudflare-api` MCP connection could create DNS records but
+returned `Unauthorized` for zone-settings and activation-check calls, so this one toggle needed
+LJ directly) — Full Strict means Cloudflare validates the origin's certificate is real and
+current, not just present, closing the gap a plain "Full" mode would leave.
+
+Verified end-to-end, not just that a certificate loaded: `openssl s_client` against Cloudflare's
+actual edge IP (bypassing this machine's stale local DNS cache, the same propagation-lag pattern
+seen in Step 5.1) showed a live, currently-valid Google Trust Services certificate for
+`CN=ljubenvassilev.com`, accepted by curl's default trust store with no `-k` needed — the same
+check a browser makes. Then sent both the plan's spam and legit test payloads to
+`contact.ljubenvassilev.com` and confirmed via the backend's own `journalctl` output — not just
+the client-visible response, which is identical either way by design — that exactly one real
+`POST /contact` reached the VM (the legit message, `200 OK`, sourced from a genuine Cloudflare
+edge IP) and the spam message never touched the backend at all. Closes the gap decision 47 left
+open in Step 4.2.
+
+**Rejected:**
+- *certbot/Let's Encrypt directly on the VM.* Would only secure a leg visitors never traverse
+  directly, while adding a second, independently-maintained certificate lifecycle next to the one
+  Cloudflare already runs for every other hostname in this project.
+
+**Consequences:**
+- Certificate renewal: the origin certificate is valid until 2041, so there's nothing to rotate
+  for the life of this project. Cloudflare's own Universal SSL cert (the one visitors see, ~90 day
+  validity) renews automatically with no action needed on our side.
+- `docs/runbook.md` (Phase 8) should document where the origin cert/key live on the VM
+  (`/etc/ssl/cloudflare/`) and that they're Cloudflare Origin CA-issued, not Let's Encrypt, so a
+  future reader doesn't go looking for a certbot timer that doesn't exist.
+- The Workers Observability query for the edge Worker's own logs came back empty when checked
+  during this step's verify — logs may not be enabled for this Worker, or the query needs
+  different filters. Not investigated further since the backend's own journal gave a more
+  direct, sufficient answer for this step's purposes, but worth revisiting if Worker-side log
+  visibility is ever actually needed.
+
+---
+
 ## Open decisions
 
 Not yet decided. Each will get a full entry when resolved.
 
 | Decision | Blocked on | Notes |
 |---|---|---|
-| **TLS termination** | Step 5.2 | certbot on the VM, or Cloudflare edge TLS with an origin certificate in "full strict" mode. |
