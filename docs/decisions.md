@@ -1753,6 +1753,77 @@ entry that erodes trust in the rest of the list.
 
 ---
 
+## 52. `backend-deploy.yml` reuses `infra/deploy.sh` directly; GitHub Secrets becomes the source of truth for backend runtime secrets
+
+**Date:** 2026-07-26
+**Status:** accepted
+
+**Context:** `.github/CLAUDE.md`'s workflow table described `backend-deploy.yml` as "SSH to Oracle
+VM, restart systemd" — accurate as a summary of the *service* restart, but read as though the
+workflow wouldn't actually deploy new code. LJ caught this while reviewing Step 6.1 and asked for
+two things: make sure the workflow does a real deploy, and have it supply the backend's runtime
+secrets from GitHub Actions rather than relying on `/etc/ai-portfolio.env` having been populated
+by hand on the VM (decision 37's original design — never a deliberate security stance, just a
+property of a script that ran from a dev machine and had no reason to touch a file the VM already
+had).
+
+**Decision:** `backend-deploy.yml` doesn't reimplement deploy logic in YAML — it checks out the
+repo and runs `infra/deploy.sh` on the runner, the exact same script and steps already used for
+manual deploys (rsync code, rebuild venv and vector store, install the systemd unit and nginx
+site, restart, health-check), so there is exactly one deploy path to maintain rather than two that
+can drift apart. `deploy.sh` gained one new, narrowly-gated step: when `CI=true` (set automatically
+by GitHub Actions, never by a human) and `ANTHROPIC_API_KEY`/`RESEND_API_KEY`/`CONTACT_NOTIFY_TO`/
+`SENTRY_DSN` are all present in its own environment, it writes `/etc/ai-portfolio.env` from them
+(root-owned, `chmod 640`, piped over SSH via stdin — never a command-line argument or an echoed
+value) before the existing env-file guard even runs. A plain local `./deploy.sh` run is
+unaffected: without `CI=true`, the file is left exactly as before, still expected to already
+exist.
+
+Requiring both `CI=true` and every value non-empty (rather than either alone) means a stray
+locally-exported `ANTHROPIC_API_KEY` — plausible if LJ is testing something else in the same
+shell — can never accidentally trigger a silent overwrite of the VM's real environment file.
+
+The workflow's own post-deploy smoke test hits `https://api.ljubenvassilev.com/health` — the real
+public domain, not the VM's bare IP — deliberately stronger than `deploy.sh`'s own internal
+127.0.0.1/nginx checks, since it's the only check in the whole pipeline that exercises DNS,
+Cloudflare's edge TLS, and the origin certificate together, on every single deploy.
+
+**Rejected:**
+- *Reimplement the deploy steps directly in the workflow YAML.* Two copies of the same logic
+  (rsync, venv, vector store, systemd, nginx) that could quietly diverge — exactly what decision
+  52 exists to avoid. `deploy.sh` already worked and was already tested manually across several
+  real deploys; the workflow's job is to supply credentials and invoke it, nothing more.
+- *Leave secrets on the VM, populated by hand, permanently.* Was accepted as a reasonable state
+  for `deploy.sh`'s original scope (a manual, local-machine script), but decision 51 already
+  flagged it as something "will need revisiting" the moment CI could plausibly own it — this is
+  that revisit. A single source of truth in GitHub Secrets means rotating
+  `ANTHROPIC_API_KEY` is one action, not "update GitHub *and* remember to SSH into the VM."
+
+**Consequences:**
+- Section 5 moved `ANTHROPIC_API_KEY`, `RESEND_API_KEY`, `CONTACT_NOTIFY_TO`, and a new
+  `SENTRY_DSN_BACKEND` (named to disambiguate from web's `VITE_SENTRY_DSN` in the GitHub UI, written
+  into the VM's file as plain `SENTRY_DSN`) from "already on the VM" into "GitHub Actions secrets
+  needed now."
+- `/etc/ai-portfolio.env` is no longer something LJ needs to maintain by hand going forward, but it
+  still needs to exist correctly *once* before the very first CI-driven deploy overwrites it — no
+  change needed there, since it's already populated from Step 2.6.
+- `deploy.sh`'s header comment "this script never transports or echoes a secret" is no longer
+  categorically true — it's true for a local run, not a CI one. The comment was rewritten rather
+  than left stale.
+- Every future backend runtime secret needs adding in two places: `backend/.env.example` (shape
+  reference) and the `for var in ...` list plus the heredoc in `deploy.sh`'s new step — easy to
+  forget one, worth checking both when the app's config surface grows.
+- Found and fixed a latent bug while in this file for an unrelated reason: `deploy.sh`'s own
+  internal nginx health check (step 2h) still curled plain `http://127.0.0.1/health`, unchanged
+  since before Step 5.2. Port 80 now redirects to 443 rather than proxying directly, so that check
+  had quietly degraded into "did nginx return a redirect" — still exit-0, still logged as a pass,
+  no longer actually testing what it claimed to. Now uses `--resolve
+  api.ljubenvassilev.com:443:127.0.0.1` against the real HTTPS path, validating the origin
+  certificate end to end while staying local. Nothing had exercised this check since Step 5.2
+  shipped, which is exactly how it went unnoticed.
+
+---
+
 ## Open decisions
 
 Not yet decided. Each will get a full entry when resolved.

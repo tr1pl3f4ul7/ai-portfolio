@@ -297,15 +297,17 @@ corrected it.
 - `ORACLE_VM_SSH_PRIVATE_KEY` — `backend-deploy.yml`'s SSH access to the VM
 - `ORACLE_VM_HOST` — the VM's public IP (SSH doesn't route through Cloudflare, so this stays the
   raw IP, not `api.ljubenvassilev.com`)
+- `ANTHROPIC_API_KEY`, `RESEND_API_KEY`, `CONTACT_NOTIFY_TO`, `SENTRY_DSN_BACKEND` — the backend's
+  runtime secrets. GitHub Secrets is the source of truth for these (decision 52):
+  `backend-deploy.yml` writes them into `/etc/ai-portfolio.env` on the VM (root-owned, `chmod 640`)
+  on every deploy, so rotating a key means updating it once in GitHub rather than remembering to
+  also SSH in and update the VM by hand. `SENTRY_DSN_BACKEND` is named to disambiguate from web's
+  `VITE_SENTRY_DSN` in the GitHub UI; it's written into the VM's file as `SENTRY_DSN`, matching
+  what `backend/app/config.py` actually reads.
 - `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` — `edge-deploy.yml`'s `wrangler deploy`
 - `VITE_SENTRY_DSN`, `VITE_POSTHOG_KEY` — baked into the production web bundle at build time by
   `web-ci.yml`/`web-deploy.yml`; the web app runs with both features off if either is unset
 - `VITE_POSTHOG_HOST` — optional, only if not using PostHog's default US region (`web/src/analytics.ts` already defaults to `https://us.i.posthog.com`)
-
-**Already configured directly on the VM, not GitHub secrets** (decision 37 — `backend-deploy.yml`
-only SSHs in to restart systemd, it never writes secrets; these live in `/etc/ai-portfolio.env`,
-root-owned, `chmod 600`): `ANTHROPIC_API_KEY`, `RESEND_API_KEY`, `CONTACT_NOTIFY_TO`, backend
-`SENTRY_DSN`.
 
 **Not needed yet** — Phase 7, once the Flutter app and its store-readiness accounts exist:
 mobile Sentry/PostHog keys, the Apple signing certificate + provisioning profile, the Google Play

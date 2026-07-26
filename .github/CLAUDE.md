@@ -10,7 +10,7 @@ to build (decision 50).
 | File | Trigger path | Target |
 |---|---|---|
 | `backend-ci.yml` | `backend/**` | lint + `pytest` |
-| `backend-deploy.yml` | `backend/**` | SSH to Oracle VM, restart systemd |
+| `backend-deploy.yml` | `backend/**`, `infra/deploy.sh`, `infra/nginx/**`, `infra/systemd/**` | `infra/deploy.sh` on the runner — full rsync + venv/vector-store rebuild + nginx/systemd install + restart, secrets from GitHub Actions written to the VM's env file (decision 52) |
 | `edge-deploy.yml` | `edge/**` | `wrangler deploy` |
 | `web-deploy.yml` | `web/**` | Cloudflare Pages (decision 48) |
 | `mobile-build.yml` | `mobile/**` + tags | APK/IPA artefact + store publishing (Step 7.5, decision 42) |

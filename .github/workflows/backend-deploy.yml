@@ -1,0 +1,56 @@
+name: Deploy backend
+
+# Runs infra/deploy.sh from the runner instead of a dev machine — same script,
+# same steps (rsync code, rebuild venv + vector store, install systemd unit +
+# nginx site, restart, health-check), so there is exactly one deploy path to
+# maintain. GitHub Actions secrets are the source of truth for the backend's
+# runtime environment; deploy.sh writes them into /etc/ai-portfolio.env on the
+# VM on every run when CI=true (decision 52).
+on:
+  push:
+    branches: [master]
+    paths:
+      - "backend/**"
+      - "infra/deploy.sh"
+      - "infra/nginx/ai-portfolio.conf"
+      - "infra/systemd/ai-portfolio.service"
+      - ".github/workflows/backend-deploy.yml"
+
+concurrency:
+  group: deploy-backend
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      VM_HOST: ${{ secrets.ORACLE_VM_HOST }}
+      SSH_KEY: ${{ github.workspace }}/.deploy_key
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+      CONTACT_NOTIFY_TO: ${{ secrets.CONTACT_NOTIFY_TO }}
+      SENTRY_DSN: ${{ secrets.SENTRY_DSN_BACKEND }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Write the deploy SSH key
+        run: |
+          install -m 600 /dev/null "${SSH_KEY}"
+          printf '%s\n' "${{ secrets.ORACLE_VM_SSH_PRIVATE_KEY }}" > "${SSH_KEY}"
+
+      - name: Deploy
+        run: ./infra/deploy.sh "${VM_HOST}"
+
+      - name: Post-deploy smoke test
+        # Through the real public domain, not the VM's bare IP — exercises the
+        # whole path (DNS, Cloudflare TLS, the origin cert, nginx, uvicorn),
+        # not just the VM-local checks deploy.sh already ran internally.
+        run: curl -fsS --retry 3 --retry-delay 5 https://api.ljubenvassilev.com/health
+
+      - name: Clean up the deploy key
+        if: always()
+        run: rm -f "${SSH_KEY}"

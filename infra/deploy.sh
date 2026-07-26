@@ -2,21 +2,27 @@
 #
 # Deploy the FastAPI backend to the Oracle Ampere A1 VM.
 #
-# Runs from the dev machine. Syncs backend/ to the VM over SSH, builds a venv,
-# rebuilds the vector store, installs the systemd unit and nginx site, and
-# (re)starts the service. Idempotent: safe to run repeatedly.
-#
-# This is the FIRST-DEPLOY / manual path. Phase 7 replaces it with a
-# path-filtered GitHub Actions pipeline; until then this is how the backend
-# reaches the VM, straight from local commits without a push.
+# Syncs backend/ to the VM over SSH, builds a venv, rebuilds the vector store,
+# installs the systemd unit and nginx site, and (re)starts the service.
+# Idempotent: safe to run repeatedly. Runs both from the dev machine (manual
+# deploys) and from .github/workflows/backend-deploy.yml (CI) — same script,
+# same steps, either way (decision 52).
 #
 # Usage:   ./deploy.sh [user@]host
 #          VM_HOST=ubuntu@<vm-ip> ./deploy.sh
 #          SSH_KEY=~/.ssh/oracle ./deploy.sh ubuntu@<vm-ip>
 #
-# The secrets file /etc/ai-portfolio.env must already exist on the VM and be
-# populated (see the runbook). This script never transports or echoes a secret;
-# it refuses to start the service if that file is missing or empty.
+# The secrets file /etc/ai-portfolio.env normally already exists on the VM,
+# populated once by hand (see the runbook) — this script never needed to touch
+# it and still doesn't for a plain local run. In CI (CI=true, set automatically
+# by GitHub Actions), it instead WRITES that file from this process's own
+# environment (ANTHROPIC_API_KEY, RESEND_API_KEY, CONTACT_NOTIFY_TO,
+# SENTRY_DSN — themselves sourced from GitHub Actions secrets by the workflow),
+# so GitHub Secrets becomes the one place these values live and every deploy
+# carries them through automatically. Piped over SSH via stdin, never as a
+# command-line argument or an echoed value, and CI is required as well as the
+# values themselves so a stray locally-exported ANTHROPIC_API_KEY (e.g. for
+# unrelated testing) can never silently overwrite the VM's real env file.
 #
 set -euo pipefail
 
@@ -116,6 +122,30 @@ ok "code synced"
 scp "${ssh_opts[@]}" "${UNIT_SRC}"  "${TARGET}:${STAGE}/${SERVICE}.service"
 scp "${ssh_opts[@]}" "${NGINX_SRC}" "${TARGET}:${STAGE}/${SERVICE}.conf"
 ok "unit and nginx config staged"
+
+# --- 1.5. CI-only: write the env file from this process's own secrets -------
+#
+# Local manual runs are untouched — CI must be "true" (set automatically by
+# GitHub Actions, never by hand) AND every required var must be non-empty, so
+# this can only ever fire from the real deploy workflow. Piped over SSH via
+# stdin into a heredoc, never a command-line argument, so the values never
+# appear in a process listing on either end; -o 640 root:aiportfolio matches
+# what the manual runbook instructions already produce.
+
+if [[ ${CI:-} == "true" ]]; then
+  log "CI run detected — writing ${APP_ENV_FILE} from GitHub Actions secrets"
+  for var in ANTHROPIC_API_KEY RESEND_API_KEY CONTACT_NOTIFY_TO SENTRY_DSN; do
+    [[ -n ${!var:-} ]] || die "CI=true but \$${var} is empty — is it set in the workflow's env?"
+  done
+  remote "sudo install -m 640 -o root -g ${APP_USER} /dev/null ${APP_ENV_FILE} && sudo tee ${APP_ENV_FILE} >/dev/null" <<EOF
+ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+RESEND_API_KEY=${RESEND_API_KEY}
+CONTACT_NOTIFY_TO=${CONTACT_NOTIFY_TO}
+SENTRY_DSN=${SENTRY_DSN}
+AI_PORTFOLIO_ENV=production
+EOF
+  ok "environment file written (values never logged)"
+fi
 
 # --- 2. Provision on the VM -------------------------------------------------
 #
@@ -244,10 +274,17 @@ else
   journalctl -u "${SERVICE}" -n 30 --no-pager >&2 || true
   exit 1
 fi
-if curl -fsS --max-time 10 http://127.0.0.1/health >/dev/null; then
-  say "nginx proxies /health on port 80"
+
+# Port 80 now redirects to 443 (Step 5.2) rather than proxying directly, so a
+# plain http:// check here would just follow a redirect and report success
+# without ever exercising nginx's real path. --resolve keeps the request
+# local while still sending the Host/SNI the origin certificate was issued
+# for, so this actually validates TLS end to end rather than skipping it.
+if curl -fsS --max-time 10 --resolve api.ljubenvassilev.com:443:127.0.0.1 \
+     https://api.ljubenvassilev.com/health >/dev/null; then
+  say "nginx proxies /health on port 443"
 else
-  echo "ERROR: nginx did not proxy /health" >&2
+  echo "ERROR: nginx did not proxy /health over TLS" >&2
   exit 1
 fi
 REMOTE
