@@ -7,7 +7,7 @@ clients — see the `api-contract` skill before editing.
 
 from __future__ import annotations
 
-from typing import Literal, Optional
+from typing import Literal
 
 from pydantic import BaseModel, EmailStr, Field
 
@@ -90,10 +90,10 @@ class TriageResult(BaseModel):
     priority: Literal["high", "normal", "low"]
     summary: str = Field(description="One or two sentences telling LJ what this is.")
     draft_reply: str = Field(description="A reply LJ could edit and send. Never sent automatically.")
-    company: Optional[str] = Field(
+    company: str | None = Field(
         default=None, description="Company the sender named, or null if none was given."
     )
-    role: Optional[str] = Field(
+    role: str | None = Field(
         default=None, description="Role or job title mentioned, or null if none was given."
     )
 

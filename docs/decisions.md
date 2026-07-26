@@ -1824,6 +1824,62 @@ Cloudflare's edge TLS, and the origin certificate together, on every single depl
 
 ---
 
+## 53. CI workflows run directly on `ubuntu-latest`, no container; added `ruff` as backend's lint tool
+
+**Date:** 2026-07-26
+**Status:** accepted
+
+**Context:** Step 6.2 needed `backend-ci.yml`, `edge-ci.yml`, and `web-ci.yml`. Both `backend/` and
+`edge/` have a Docker-container test path for local use (`backend/test/run-tests.sh`,
+`edge/test/run-tests.sh`), built specifically because this dev machine is Windows on Arm and
+`sqlite-vec` (decision 26) and `workerd` (decision 45) have no wheel/build for that combination.
+Neither limitation has anything to do with Linux itself — GitHub's runners are already Linux (x64),
+where both install natively, as `.github/CLAUDE.md`'s "Runner architecture" section already
+anticipated for the backend case specifically.
+
+Separately, the plan's own Step 6.2 wording ("lint/test") assumed a lint tool existed for the
+backend. None did — `requirements-dev.txt` had only `pytest` and `httpx`. Running `ruff check .`
+against the untouched codebase surfaced 11 pre-existing issues: unsorted imports, one stale
+`# noqa`, one unused import, and one mutable class-level default in a test helper.
+
+**Decision:** All three CI workflows run directly on `ubuntu-latest` with no Docker wrapper —
+`backend-ci.yml` (`ruff check` + `pytest`), `edge-ci.yml` (`tsc --noEmit` + `vitest`), `web-ci.yml`
+(`npm run build` + `vitest`, deliberately without secrets — the real, secret-injected build is
+`web-deploy.yml`'s job, not CI's). Added `ruff==0.16.0` to `requirements-dev.txt` and fixed all 11
+existing violations before wiring it into CI, rather than shipping a lint step that's red from its
+first run: `ruff check . --fix` resolved 9 automatically (import sorting, the stale `noqa`, the
+unused import), one generator-to-set-comprehension rewrite in `app/ingest.py` was applied by hand,
+and the mutable default in `tests/test_ratelimit.py`'s `_AlwaysAnswers.messages` helper was
+annotated `ClassVar[list]` rather than restructured — the shared list is deliberate there (a
+static call-tracking namespace, never instantiated), so the fix is purely the type annotation
+ruff asks for, not a behaviour change. Verified: the full 159-test suite still passes in
+`backend/test/run-tests.sh`'s Linux container after these changes.
+
+**Rejected:**
+- *Reuse the Docker containers in CI, matching the local dev workflow exactly.* Would work, but
+  adds a Docker build step and image layer to every CI run for a limitation that is specifically
+  about this Windows Arm dev machine and does not exist on GitHub's own Linux runners at all.
+- *Skip lint entirely for backend-ci.yml, since none existed before.* The plan explicitly asks for
+  "lint/test," and the fixes needed were small and mostly mechanical — not enough reason to leave
+  the gap open now that it's been noticed.
+
+**Consequences:**
+- Discovered, but did **not** fix, a separate pre-existing gap while verifying `web-ci.yml`'s build
+  step locally: `web/CLAUDE.md` says the build should "fail loudly if a dependency ever pushes the
+  bundle past a sane size," and `vite.config.ts` sets `chunkSizeWarningLimit: 150` — but Vite only
+  *warns* past that limit by default, it doesn't fail the build. Several chunks already exceed it
+  today, most unavoidably `transformers.js` itself at ~500 KB gzipped. Making the build actually
+  fail on this would need either a higher limit specifically for known-necessary vendor chunks or
+  some other CI-side check for genuine app-code bloat — a real design decision, not something to
+  make silently while building CI workflows for an unrelated step.
+- `edge-ci.yml`/`web-ci.yml` need no Cloudflare or Sentry/PostHog credentials at all — edge's
+  `vitest.config.ts` already sets `remoteBindings: false` (decision 45), and web's CI build simply
+  runs with both integrations off, exactly as the app already behaves locally without a key.
+- Any future backend code needs to pass `ruff check .` before merging — a rule that didn't exist
+  before this step.
+
+---
+
 ## Open decisions
 
 Not yet decided. Each will get a full entry when resolved.

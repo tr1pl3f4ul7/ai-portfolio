@@ -1,0 +1,41 @@
+name: Web CI
+
+# Verifies the code typechecks, builds, and passes its tests — without any
+# secrets. The real production build (with VITE_SENTRY_DSN/VITE_POSTHOG_KEY
+# baked in) happens in web-deploy.yml; this workflow just proves a change
+# doesn't break the build or the test suite before it ever gets that far.
+on:
+  push:
+    branches: [master]
+    paths:
+      - "web/**"
+      - ".github/workflows/web-ci.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Test
+        run: npm test

@@ -36,7 +36,7 @@ def ingest(data_dir: Path = DATA_DIR, db_path: Path = DB_PATH) -> int:
     if not chunks:
         raise SystemExit(f"No chunks found in {data_dir} — is the corpus present?")
 
-    print(f"chunked {len(chunks)} sections from {len(set(c.source for c in chunks))} files")
+    print(f"chunked {len(chunks)} sections from {len({c.source for c in chunks})} files")
 
     embeddings = embed_texts([c.text for c in chunks])
     print(f"embedded {len(embeddings)} chunks")

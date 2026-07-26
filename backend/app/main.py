@@ -150,7 +150,7 @@ def contact(payload: ContactRequest, request: Request) -> ContactResponse:
 
     try:
         reference = submissions.record(payload)
-    except Exception as exc:  # noqa: BLE001 - the one failure worth surfacing
+    except Exception as exc:  # Catching broadly here is deliberate — the one failure worth surfacing
         raise HTTPException(status_code=503, detail="could not store the submission") from exc
 
     result = None

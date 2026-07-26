@@ -9,7 +9,9 @@ to build (decision 50).
 
 | File | Trigger path | Target |
 |---|---|---|
-| `backend-ci.yml` | `backend/**` | lint + `pytest` |
+| `backend-ci.yml` | `backend/**` | `ruff check` + `pytest`, directly on `ubuntu-latest` — no container needed, unlike the local dev-machine workaround (decision 53) |
+| `edge-ci.yml` | `edge/**` | `tsc --noEmit` + `vitest`, directly on `ubuntu-latest` — same reasoning as backend-ci.yml |
+| `web-ci.yml` | `web/**` | `npm run build` + `vitest`, no secrets — the real secret-injected build happens in `web-deploy.yml` |
 | `backend-deploy.yml` | `backend/**`, `infra/deploy.sh`, `infra/nginx/**`, `infra/systemd/**` | `infra/deploy.sh` on the runner — full rsync + venv/vector-store rebuild + nginx/systemd install + restart, secrets from GitHub Actions written to the VM's env file (decision 52) |
 | `edge-deploy.yml` | `edge/**` | `wrangler deploy` |
 | `web-deploy.yml` | `web/**` | Cloudflare Pages (decision 48) |

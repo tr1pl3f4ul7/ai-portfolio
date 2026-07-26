@@ -1,0 +1,42 @@
+name: Backend CI
+
+# Runs directly on ubuntu-latest, no container needed — the Docker wrapper
+# backend/test/run-tests.sh uses locally exists only because sqlite-vec has
+# no Windows-on-Arm wheel for this dev machine. GitHub's runners are Linux
+# x64, where sqlite-vec and torch both install natively (see the
+# --extra-index-url already declared in requirements.txt).
+on:
+  push:
+    branches: [master]
+    paths:
+      - "backend/**"
+      - ".github/workflows/backend-ci.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12" # matches the VM and decision 23 — never test a different minor version
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Lint
+        run: ruff check .
+
+      - name: Test
+        # Tests mock the Claude API entirely (backend/CLAUDE.md) — no
+        # ANTHROPIC_API_KEY or other secret needed here.
+        run: pytest -v

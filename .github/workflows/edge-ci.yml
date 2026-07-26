@@ -1,0 +1,44 @@
+name: Edge CI
+
+# Runs directly on ubuntu-latest, no container needed — the Docker wrapper
+# edge/test/run-tests.sh uses locally exists only because workerd has no
+# Windows-on-Arm build for this dev machine (decision 45). GitHub's runners
+# are Linux x64, where workerd installs natively.
+on:
+  push:
+    branches: [master]
+    paths:
+      - "edge/**"
+      - ".github/workflows/edge-ci.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: edge
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: edge/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        # vitest.config.ts sets remoteBindings: false — every test builds its
+        # own fake env and calls worker.fetch() directly, so no Cloudflare
+        # credentials are needed here (decision 45).
+        run: npm test

@@ -8,6 +8,7 @@ without waiting for one.
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+from typing import ClassVar
 
 import pytest
 from fastapi.testclient import TestClient
@@ -194,7 +195,9 @@ def answering(monkeypatch):
 
 class _AlwaysAnswers:
     class messages:
-        calls: list = []
+        # A shared collector, not a per-instance default — messages is used as
+        # a static namespace and never instantiated.
+        calls: ClassVar[list] = []
 
         @staticmethod
         def create(**kwargs):

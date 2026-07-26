@@ -21,7 +21,6 @@ import pytest
 from app import config, notify, observability, rag
 from tests.conftest import DUMMY_ANTHROPIC_KEY, DUMMY_RESEND_KEY, LiveApiCallAttempted
 
-
 # --- 1. No real credentials in scope ----------------------------------------
 
 

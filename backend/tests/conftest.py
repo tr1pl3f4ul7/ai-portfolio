@@ -42,11 +42,11 @@ os.environ["RESEND_API_KEY"] = DUMMY_RESEND_KEY
 os.environ["CONTACT_NOTIFY_TO"] = "nobody@example.com"
 os.environ["SENTRY_DSN"] = ""
 
-from dataclasses import dataclass, field  # noqa: E402
+from dataclasses import dataclass, field
 
-import pytest  # noqa: E402
+import pytest
 
-from app import config, notify, observability, rag  # noqa: E402
+from app import config, notify, observability, rag
 
 
 class LiveApiCallAttempted(AssertionError):

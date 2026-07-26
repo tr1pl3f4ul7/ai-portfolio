@@ -9,10 +9,7 @@ so no real `sentry_sdk.init` ever runs and nothing is ever sent.
 
 from __future__ import annotations
 
-import pytest
-
 from app import main, observability
-
 
 # --- The scrubber -----------------------------------------------------------
 
