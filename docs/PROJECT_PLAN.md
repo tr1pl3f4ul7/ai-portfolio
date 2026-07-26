@@ -288,16 +288,28 @@ store publishing — is Step 7.5, once Phase 7 has actually built something to p
 
 ## 5. Secrets / Environment Variables Checklist
 
-To be stored as GitHub Actions secrets and/or VM environment variables — never committed:
+Names below match what the code actually reads (`backend/.env.example`, `web/.env.example`,
+`edge/.env.example`) — this list originally predated several decisions (Resend over SMTP,
+decision 33; the actual `VITE_`-prefixed names web reads) and drifted from them until Step 6.1
+corrected it.
 
-- `ANTHROPIC_API_KEY`
-- `ORACLE_VM_SSH_PRIVATE_KEY`
-- `ORACLE_VM_HOST` (public IP or hostname)
-- `CLOUDFLARE_API_TOKEN`
-- `CLOUDFLARE_ACCOUNT_ID`
-- `SENTRY_DSN_BACKEND`, `SENTRY_DSN_WEB`, `SENTRY_DSN_MOBILE`
-- `POSTHOG_API_KEY_WEB`, `POSTHOG_API_KEY_MOBILE`, `POSTHOG_HOST`
-- SMTP credentials or notification webhook URL (if email notifications are used for contact form)
+**GitHub Actions secrets, needed by Phase 6's workflows:**
+- `ORACLE_VM_SSH_PRIVATE_KEY` — `backend-deploy.yml`'s SSH access to the VM
+- `ORACLE_VM_HOST` — the VM's public IP (SSH doesn't route through Cloudflare, so this stays the
+  raw IP, not `api.ljubenvassilev.com`)
+- `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` — `edge-deploy.yml`'s `wrangler deploy`
+- `VITE_SENTRY_DSN`, `VITE_POSTHOG_KEY` — baked into the production web bundle at build time by
+  `web-ci.yml`/`web-deploy.yml`; the web app runs with both features off if either is unset
+- `VITE_POSTHOG_HOST` — optional, only if not using PostHog's default US region (`web/src/analytics.ts` already defaults to `https://us.i.posthog.com`)
+
+**Already configured directly on the VM, not GitHub secrets** (decision 37 — `backend-deploy.yml`
+only SSHs in to restart systemd, it never writes secrets; these live in `/etc/ai-portfolio.env`,
+root-owned, `chmod 600`): `ANTHROPIC_API_KEY`, `RESEND_API_KEY`, `CONTACT_NOTIFY_TO`, backend
+`SENTRY_DSN`.
+
+**Not needed yet** — Phase 7, once the Flutter app and its store-readiness accounts exist:
+mobile Sentry/PostHog keys, the Apple signing certificate + provisioning profile, the Google Play
+upload keystore and service-account JSON.
 
 ---
 

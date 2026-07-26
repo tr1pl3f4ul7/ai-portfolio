@@ -1709,11 +1709,47 @@ the reorder itself.
 sequence nobody is following, which defeats the entire point of a written plan.
 
 **Consequences:**
-- Section 6 (secrets checklist) and Section 6 "Definition of Done" needed no changes — both are
-  already phase-agnostic, listing outcomes and credentials rather than referencing phase numbers.
+- Section 5 (secrets checklist) and Section 6 (Definition of Done) needed no changes for the
+  reorder itself — both are already phase-agnostic, listing outcomes and credentials rather than
+  referencing phase numbers. Section 5 got a separate, unrelated correction at Step 6.1 (decision
+  51) when its secret names turned out not to match what the code actually reads.
 - Any future reference to "Phase 6" now means CI/CD, and "Phase 7" means the mobile app — the
   opposite of what those numbers meant before this decision. A reader relying on memory rather
   than the current file is exactly the failure mode this entry exists to prevent.
+
+---
+
+## 51. Corrected Section 5's secret names to match what the code actually reads
+
+**Date:** 2026-07-26
+**Status:** accepted
+
+**Context:** Step 6.1 needed the exact secret names for Phase 6's GitHub Actions workflows. Section
+5 was written early (Phase 0) and drifted from decisions made since: it listed `SENTRY_DSN_WEB`,
+`POSTHOG_API_KEY_WEB`, and `POSTHOG_HOST`, but `web/.env.example` and the actual source
+(`web/src/observability.ts`, `web/src/analytics.ts`) read `VITE_SENTRY_DSN`, `VITE_POSTHOG_KEY`,
+and `VITE_POSTHOG_HOST` — Vite only exposes the `VITE_`-prefixed form to client code, so the
+old names would never have worked if used literally. It also still said "SMTP credentials or
+notification webhook URL," predating decision 33's move to Resend's HTTP API entirely.
+
+**Decision:** Rewrote Section 5 against the real `.env.example` files rather than by memory, and
+split it into three groups instead of one flat list: GitHub Actions secrets Phase 6 actually needs
+now, secrets already configured directly on the VM that should *not* become GitHub secrets
+(`ANTHROPIC_API_KEY`, `RESEND_API_KEY`, `CONTACT_NOTIFY_TO`, backend `SENTRY_DSN` — decision 37
+already established the VM's `/etc/ai-portfolio.env` as their home, and `backend-deploy.yml` only
+restarts systemd, it never writes secrets), and what Phase 7 will need once it exists.
+
+**Rejected:** *Add the missing `VITE_` secrets alongside the old wrong names, leaving both.*
+Would silently carry forward a checklist item nobody should ever actually create
+(`SENTRY_DSN_WEB` was never going to do anything), the exact kind of stale-but-plausible-looking
+entry that erodes trust in the rest of the list.
+
+**Consequences:**
+- Section 5 now explicitly separates "needed now" from "already handled elsewhere" from "not yet"
+  — a future step reading it shouldn't need to cross-check three `.env.example` files again to
+  know what actually applies.
+- If backend secrets are ever automated into CI (rather than living only on the VM), Section 5's
+  "already configured directly on the VM" framing will need revisiting.
 
 ---
 
