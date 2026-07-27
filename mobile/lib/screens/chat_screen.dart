@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../analytics.dart';
 import '../api/client.dart';
 import '../api/models.dart';
 import '../theme/tokens.dart';
@@ -7,15 +8,19 @@ import 'async_content.dart';
 
 class ChatScreen extends StatelessWidget {
   final ApiClient apiClient;
+  final Analytics? analytics;
 
-  const ChatScreen({super.key, required this.apiClient});
+  const ChatScreen({super.key, required this.apiClient, this.analytics});
 
   @override
   Widget build(BuildContext context) {
     return AsyncContent<AskContent>(
       fetch: apiClient.getAskContent,
-      builder: (context, content) =>
-          _ChatBody(apiClient: apiClient, content: content),
+      builder: (context, content) => _ChatBody(
+        apiClient: apiClient,
+        analytics: analytics ?? NoOpAnalytics(),
+        content: content,
+      ),
     );
   }
 }
@@ -29,9 +34,10 @@ class _Exchange {
 
 class _ChatBody extends StatefulWidget {
   final ApiClient apiClient;
+  final Analytics analytics;
   final AskContent content;
 
-  const _ChatBody({required this.apiClient, required this.content});
+  const _ChatBody({required this.apiClient, required this.analytics, required this.content});
 
   @override
   State<_ChatBody> createState() => _ChatBodyState();
@@ -63,6 +69,7 @@ class _ChatBodyState extends State<_ChatBody> {
       final response = await widget.apiClient.askQuestion(question);
       if (!mounted) return;
       setState(() => _exchanges.add(_Exchange(question: question, response: response)));
+      widget.analytics.track('chat used');
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() => _error = e.message);

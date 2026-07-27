@@ -37,6 +37,8 @@ dependencies:
 
   http: ^1.5.0
   flutter_local_ai: ^0.0.16
+  sentry_flutter: ^9.25.0
+  posthog_flutter: ^5.33.0
 
 dev_dependencies:
   flutter_test:
@@ -48,16 +50,6 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
-
-# jni 1.0.1 (a transitive dep of flutter_local_ai) added AGP-version-branching
-# logic to its android/build.gradle that assumes AGP 9+ provides a built-in
-# `kotlin { }` DSL extension. It doesn't (at least not in 9.0.1), so the
-# branch that should apply the kotlin-android plugin never runs, and the
-# script's own `kotlin { }` block fails with "Could not find method kotlin()".
-# jni 1.0.0 has no Kotlin plugin logic at all, so it can't hit this — pinned
-# back until upstream fixes the AGP 9 branch.
-dependency_overrides:
-  jni: 1.0.0
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

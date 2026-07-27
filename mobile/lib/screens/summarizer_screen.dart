@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_local_ai/flutter_local_ai.dart';
 
 import '../ai/summarizer.dart';
+import '../analytics.dart';
 import '../api/client.dart';
 import '../api/models.dart';
 import '../theme/tokens.dart';
@@ -17,8 +18,14 @@ import 'async_content.dart';
 class SummarizerScreen extends StatelessWidget {
   final ApiClient apiClient;
   final OnDeviceSummarizer? summarizer;
+  final Analytics? analytics;
 
-  const SummarizerScreen({super.key, required this.apiClient, this.summarizer});
+  const SummarizerScreen({
+    super.key,
+    required this.apiClient,
+    this.summarizer,
+    this.analytics,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -27,6 +34,7 @@ class SummarizerScreen extends StatelessWidget {
       builder: (context, content) => _SummarizerBody(
         content: content,
         summarizer: summarizer ?? FlutterLocalAiSummarizer(),
+        analytics: analytics ?? NoOpAnalytics(),
       ),
     );
   }
@@ -46,8 +54,13 @@ enum _Status {
 class _SummarizerBody extends StatefulWidget {
   final SummarizerContent content;
   final OnDeviceSummarizer summarizer;
+  final Analytics analytics;
 
-  const _SummarizerBody({required this.content, required this.summarizer});
+  const _SummarizerBody({
+    required this.content,
+    required this.summarizer,
+    required this.analytics,
+  });
 
   @override
   State<_SummarizerBody> createState() => _SummarizerBodyState();
@@ -150,6 +163,7 @@ class _SummarizerBodyState extends State<_SummarizerBody> {
         _status = _Status.result;
         _summary = summary;
       });
+      widget.analytics.track('summarizer used');
     } catch (_) {
       if (!mounted) return;
       setState(() {

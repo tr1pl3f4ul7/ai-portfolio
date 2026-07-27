@@ -1,15 +1,24 @@
 import 'package:flutter/material.dart';
+import 'package:sentry_flutter/sentry_flutter.dart';
 
+import 'analytics.dart';
 import 'api/client.dart';
+import 'observability.dart';
 import 'screens/app_shell.dart';
 import 'theme/tokens.dart';
 
-void main() {
-  runApp(const AiPortfolioApp());
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  final analytics = await initAnalytics();
+  await initObservability(() async {
+    runApp(SentryWidget(child: AiPortfolioApp(analytics: analytics)));
+  });
 }
 
 class AiPortfolioApp extends StatelessWidget {
-  const AiPortfolioApp({super.key});
+  final Analytics analytics;
+
+  const AiPortfolioApp({super.key, required this.analytics});
 
   @override
   Widget build(BuildContext context) {
@@ -50,7 +59,7 @@ class AiPortfolioApp extends StatelessWidget {
           bodyMedium: TextStyle(color: Tokens.ink),
         ),
       ),
-      home: AppShell(apiClient: ApiClient()),
+      home: AppShell(apiClient: ApiClient(), analytics: analytics),
     );
   }
 }

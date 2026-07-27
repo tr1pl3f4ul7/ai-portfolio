@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:ai_portfolio/ai/summarizer.dart';
+import 'package:ai_portfolio/analytics.dart';
 import 'package:ai_portfolio/api/client.dart';
 import 'package:ai_portfolio/screens/summarizer_screen.dart';
 import 'package:flutter/material.dart';
@@ -9,6 +10,16 @@ import 'package:flutter_local_ai/flutter_local_ai.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+
+class _RecordingAnalytics implements Analytics {
+  final List<String> events = [];
+
+  @override
+  void screen(String name) {}
+
+  @override
+  void track(String event, [Map<String, Object>? properties]) => events.add(event);
+}
 
 const _noDownloadInfo = LocalAiPlatformInfo(
   backend: LocalAiBackend.unsupported,
@@ -87,9 +98,11 @@ ApiClient _client() {
   );
 }
 
-Widget _harness(OnDeviceSummarizer summarizer) {
+Widget _harness(OnDeviceSummarizer summarizer, {Analytics? analytics}) {
   return MaterialApp(
-    home: Scaffold(body: SummarizerScreen(apiClient: _client(), summarizer: summarizer)),
+    home: Scaffold(
+      body: SummarizerScreen(apiClient: _client(), summarizer: summarizer, analytics: analytics),
+    ),
   );
 }
 
@@ -240,6 +253,34 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('A concise, on-device summary.'), findsOneWidget);
+  });
+
+  testWidgets('tracks "summarizer used" on success, not before', (tester) async {
+    final analytics = _RecordingAnalytics();
+    final summarizer = _FakeSummarizer(summarizeError: null);
+
+    await tester.pumpWidget(_harness(summarizer, analytics: analytics));
+    await tester.pumpAndSettle();
+
+    expect(analytics.events, isEmpty);
+
+    await tester.tap(find.text('Summarize on-device'));
+    await tester.pumpAndSettle();
+
+    expect(analytics.events, ['summarizer used']);
+  });
+
+  testWidgets('does not track "summarizer used" when summarizing fails', (tester) async {
+    final analytics = _RecordingAnalytics();
+    final summarizer = _FakeSummarizer(summarizeError: Exception('boom'));
+
+    await tester.pumpWidget(_harness(summarizer, analytics: analytics));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Summarize on-device'));
+    await tester.pumpAndSettle();
+
+    expect(analytics.events, isEmpty);
   });
 
   testWidgets('shows a readable error and lets the visitor retry', (tester) async {

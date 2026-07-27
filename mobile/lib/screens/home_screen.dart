@@ -1,7 +1,9 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../api/client.dart';
 import '../api/models.dart';
+import '../observability.dart';
 import '../theme/tokens.dart';
 import 'async_content.dart';
 
@@ -74,6 +76,16 @@ class HomeScreen extends StatelessWidget {
             color: Tokens.layerCloud,
             onTap: () => onNavigate(4),
           ),
+          // Debug-only, tree-shaken out of release builds — how Step 7.3's
+          // verification is done: trigger a real error and confirm it
+          // reaches Sentry. Mirrors the backend's /debug/error route.
+          if (kDebugMode) ...[
+            const SizedBox(height: Tokens.space6),
+            OutlinedButton(
+              onPressed: triggerTestCrash,
+              child: const Text('Trigger test crash (debug only)'),
+            ),
+          ],
         ],
       ),
     );
