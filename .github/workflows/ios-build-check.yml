@@ -44,7 +44,7 @@ jobs:
         run: flutter build ios --release --no-codesign
 
       - name: Upload the unsigned build for inspection
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ios-unsigned-build
           path: mobile/build/ios/iphoneos/Runner.app
