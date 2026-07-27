@@ -1,6 +1,6 @@
 {
   "label": "summarizer",
   "heading": "a real summary, generated on your phone",
-  "description": "A small on-device model condenses this text into a short summary, entirely on your device, no request goes out. Placeholder copy — refined when Phase 7 Step 7.3 designs the mobile summarizer for real.",
-  "source_text": "Placeholder source text for the on-device model to condense. Replaced at Step 7.3 with real, bounded content chosen specifically to avoid the free-generation hallucination risk decision 44 already found for small models."
+  "description": "A small on-device model condenses this into a short summary, entirely on your device — no request goes out.",
+  "source_text": "Ljuben Vassilev is a mobile engineer specialising in AI-augmented software development, based in Brisbane, Queensland, Australia. He began his software career in 2016 and has ten years of professional experience. Mobile is the foundation; AI is the specialisation he has built on top of it. A decade of shipping Android in Java and Kotlin, then Flutter and Dart, gave him the engineering judgement, and he now applies it to building, deploying and operating AI systems. He works at an AI company, uses AI tooling as a daily production workflow, engineers that tooling rather than just consuming it, and has built and deployed a four-layer AI system end to end on infrastructure he provisioned himself. Two further specialisations sit alongside: application security, backed by a Master's degree and three years as an Application Security Engineer, and real-time 3D for VR and AR."
 }

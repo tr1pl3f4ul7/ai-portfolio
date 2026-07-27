@@ -30,6 +30,13 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+        <!-- Declares Gemini Nano's on-device runtime for flutter_local_ai's
+             summarizer (Step 7.2). required="false" so the app still runs on
+             devices without AICore — the summarizer screen shows an honest
+             disabled state instead of crashing. -->
+        <uses-library
+            android:name="com.google.android.aicore"
+            android:required="false" />
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

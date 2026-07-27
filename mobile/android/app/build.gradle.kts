@@ -19,7 +19,10 @@ android {
         applicationId = "com.ljubenvassilev.ai_portfolio"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion
+        // 26, not flutter.minSdkVersion: flutter_local_ai requires API 26+ for
+        // ML Kit GenAI (Gemini Nano) on Android — see Step 7.2's on-device
+        // summarizer.
+        minSdk = 26
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
@@ -32,6 +35,13 @@ android {
             signingConfig = signingConfigs.getByName("debug")
         }
     }
+}
+
+dependencies {
+    // Required by flutter_local_ai for Gemini Nano access on Android (Step 7.2).
+    implementation("com.google.mlkit:genai-prompt:1.0.0-beta2")
+    implementation("com.google.mlkit:genai-common:1.0.0-beta3")
+    implementation("com.google.android.gms:play-services-tasks:18.2.0")
 }
 
 kotlin {
