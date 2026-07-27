@@ -1,0 +1,51 @@
+name: iOS Build Check
+
+# Verifies the Flutter app still compiles for iOS — Podfile resolves, the
+# Xcode project builds, flutter_local_ai's FoundationModels integration
+# links correctly. Runs on GitHub's free macos runner (public repo) since no
+# Mac exists locally to check this by hand.
+#
+# This does NOT produce a signed, installable .ipa — that needs Apple
+# Developer signing credentials, added at Step 7.4 of the plan. Once those
+# exist, extend the build step below to export a properly signed .ipa
+# instead of stopping at the unsigned archive.
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - "mobile/**"
+      - ".github/workflows/ios-build-check.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.44.7" # matches the local dev toolchain
+          channel: stable
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build unsigned iOS archive
+        run: flutter build ios --release --no-codesign
+
+      - name: Upload the unsigned build for inspection
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-unsigned-build
+          path: mobile/build/ios/iphoneos/Runner.app
+          retention-days: 7
