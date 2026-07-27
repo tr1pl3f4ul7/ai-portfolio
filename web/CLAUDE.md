@@ -49,8 +49,8 @@ PostHog events to fire explicitly (beyond autocapture): **form submitted**, **ch
 - **Model download is the UX problem.** Even a small model is tens of megabytes. Never start it
   on page load — require a click, show real progress, cache via the browser's model cache, and
   state the size up front.
-- **Never trust an API's mere presence as proof it works.** `navigator.gpu` existed on a real
-  Copilot PC with no working adapter behind it, confirmed the hard way (decision 43). Check by
+- **Never trust an API's mere presence as proof it works.** `navigator.gpu` existed with no
+  working adapter behind it in real testing, confirmed the hard way (decision 43). Check by
   actually trying the thing, not by checking that a name exists on the global.
 - **Degrade honestly.** If a browser capability this page depends on is missing or broken, say so
   plainly — don't silently route to the backend instead.

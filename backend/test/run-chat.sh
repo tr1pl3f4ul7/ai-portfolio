@@ -3,9 +3,9 @@
 # Serve the backend from the Linux test container so /chat can be exercised by
 # hand on the dev machine.
 #
-# sqlite-vec has no Windows ARM64 wheel, so the API cannot run natively here.
-# This starts the same linux/arm64 image the test suite uses, publishing uvicorn
-# on localhost:8000. Then, in another terminal:
+# sqlite-vec has no wheel matching the local environment, so the API cannot
+# run natively here. This starts the same linux/arm64 image the test suite
+# uses, publishing uvicorn on localhost:8000. Then, in another terminal:
 #
 #     python smoke_chat.py
 #

@@ -184,9 +184,9 @@ default security list separately.
 **Date:** 2026-07-23
 **Status:** accepted — **version choice superseded by decision 23** (the extra-index-URL finding still stands)
 
-**Context:** The dev machine is a Copilot PC (Arm-based Windows). The plan pins
-`sentence-transformers/all-MiniLM-L6-v2`, which depends on PyTorch. Verified by testing:
-`pip install torch` fails outright — PyPI publishes **zero** `win_arm64` wheels for torch.
+**Context:** The plan pins `sentence-transformers/all-MiniLM-L6-v2`, which depends on PyTorch.
+Verified by testing: `pip install torch` fails outright in the local development environment —
+PyPI publishes no matching wheel for it there.
 
 **Decision:** Keep Python 3.11 and install torch from PyTorch's own index for local development:
 
@@ -194,7 +194,7 @@ default security list separately.
 pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cpu
 ```
 
-Confirmed working: `torch 2.13.0+cpu / cp311 / win_arm64` resolves from that index.
+Confirmed working: a `torch 2.13.0+cpu / cp311` wheel resolves from that index.
 
 **Rejected:**
 - *Switching the local Python version:* unnecessary once the real cause was identified —
@@ -203,31 +203,31 @@ Confirmed working: `torch 2.13.0+cpu / cp311 / win_arm64` resolves from that ind
   benefit, since the VM has native wheels.
 - *Developing the backend only on the VM:* slow feedback loop for no gain.
 
-**Consequences:** Local installs need the extra index; **VM and CI installs must not use it.**
+**Consequences:** Local installs need the extra index; **VM and CI installs must not use it** —
 Oracle Ampere A1 is Linux `aarch64`, where PyPI ships native `manylinux_aarch64` wheels, and
-GitHub's runners are x86-64 Linux. Two different ARM64 targets with opposite requirements is an
-easy thing to get wrong, so it is documented in the root `CLAUDE.md` and `backend/CLAUDE.md`.
+GitHub's runners are x86-64 Linux, which also has native wheels. Only the local environment needs
+the extra index, so it is documented in the root `CLAUDE.md` and `backend/CLAUDE.md` rather than
+applied everywhere.
 
 ---
 
-## 9. Flutter x64 SDK under emulation
+## 9. Flutter's x64-only Windows SDK, installed as-is
 
 **Date:** 2026-07-23
 **Status:** accepted
 
-**Context:** Flutter publishes no native Arm Windows build — the release manifest lists
-`dart_sdk_arch: x64` for every stable Windows release. There is also no winget package for the SDK.
+**Context:** Flutter's Windows release only ships one architecture — the release manifest lists
+`dart_sdk_arch: x64` for every stable Windows build, with no winget package offering anything else.
 
-**Decision:** Install the x64 SDK (3.44.7) and run it under Windows' x64 emulation on this Copilot
-PC.
+**Decision:** Install the x64 SDK (3.44.7) and use it as-is in the local development environment.
 
-**Rejected:** Waiting for a native build (none announced), or developing the Flutter app in a
-Linux VM (heavier, and the existing Android Studio + SDK 36.1.0 + JDK 21 install is already on
-Windows).
+**Rejected:** Waiting for an alternative build (none announced), or developing the Flutter app in a
+Linux VM (heavier, and the existing Android Studio + SDK 36.1.0 + JDK 21 install is already set up
+locally).
 
-**Consequences:** Builds are slower than native but functional. `flutter doctor` reports a missing
-Visual Studio C++ workload — that affects only Flutter *Windows desktop* targets, which are out of
-scope, and is safely ignored.
+**Consequences:** Builds are somewhat slower than they'd otherwise be, but functional. `flutter
+doctor` reports a missing Visual Studio C++ workload — that affects only Flutter *Windows desktop*
+targets, which are out of scope, and is safely ignored.
 
 ---
 
@@ -559,11 +559,11 @@ behaviour are still only provable on the VM.
 3.11, purely because 3.11 was already installed. A dev/production version gap is a latent source
 of bugs that reproduce on one and not the other, and it makes CI's target ambiguous.
 
-**Decision:** Install Python 3.12.10 (ARM64) locally. **Local, VM, and CI all run 3.12.**
+**Decision:** Install Python 3.12.10 locally. **Local, VM, and CI all run 3.12.**
 
-Verified rather than assumed: `torch-2.13.0+cpu / cp312 / win_arm64` resolves from
-`https://download.pytorch.org/whl/cpu`, so the ARM64 workaround from decision 8 works unchanged
-on 3.12.
+Verified rather than assumed: a matching `torch-2.13.0+cpu / cp312` wheel resolves from
+`https://download.pytorch.org/whl/cpu`, so the extra-index workaround from decision 8 works
+unchanged on 3.12.
 
 **Rejected:**
 - *Keeping the split.* Cheap today, and the class of bug it invites — works locally, fails on the
@@ -619,10 +619,9 @@ check. The packet-counter measurement itself only works on the VM — a containe
 **Date:** 2026-07-23
 **Status:** accepted
 
-**Context:** `pip install uvicorn[standard]` fails on this Copilot PC. The extra pulls in
-`httptools`, which has **never** published a `win_arm64` wheel — only `win_amd64`, across every
-release — so pip falls back to compiling from source and fails. The extra also wants `uvloop`,
-which does not support Windows at all.
+**Context:** `pip install uvicorn[standard]` fails in the local development environment. The extra
+pulls in `httptools`, which has no matching wheel there, so pip falls back to compiling from
+source and fails. The extra also wants `uvloop`, which does not support Windows at all.
 
 **Decision:** Depend on plain `uvicorn` everywhere — dev, VM and CI.
 
@@ -641,9 +640,6 @@ which dominates latency by orders of magnitude. Also loses `watchfiles` (`--relo
 stat polling) and `websockets` (unused). Worth revisiting only if profiling ever shows the server
 loop as a bottleneck, which for a portfolio site it will not.
 
-This is the third ARM64 packaging trap on this project, after torch (decision 8) and the Flutter
-SDK (decision 9).
-
 ---
 
 ## 26. sqlite-vec retained; backend tests run in a Linux container
@@ -652,17 +648,14 @@ SDK (decision 9).
 **Status:** accepted
 
 **Context:** `sqlite-vec` publishes wheels for macOS x86 and ARM, Linux x86 and aarch64, and
-Windows x64 — but **no `win_arm64`**. It runs on the Oracle VM and in CI, and cannot run natively
-on this Copilot PC. Checked at the same time: `chromadb` and `faiss-cpu` have the same gap.
-`numpy` and `onnxruntime` do ship `win_arm64` wheels.
-
-This is the fourth ARM64 packaging trap on this project, after torch (8), the Flutter SDK (9) and
-`httptools` (25).
+Windows x64 — but has no wheel matching the local development environment. It runs fine on the
+Oracle VM and in CI. Checked at the same time: `chromadb` and `faiss-cpu` have the same gap;
+`numpy` and `onnxruntime` don't.
 
 **Decision:** Keep `sqlite-vec`, exactly as the plan specifies. The backend test suite runs inside
 a Linux container (`backend/test/`, `python:3.12-slim` on linux/arm64, matching the VM). Tests that
-need the extension use `pytest.importorskip`, so a native `pytest` run on Windows still executes
-the rest of the suite and skips those rather than erroring.
+need the extension use `pytest.importorskip`, so a native local `pytest` run still executes the
+rest of the suite and skips those rather than erroring.
 
 **Rejected:**
 - *Storing embeddings as SQLite BLOBs with numpy cosine similarity.* Works identically on both
@@ -1200,12 +1193,12 @@ through review is itself part of the mobile skillset the portfolio is arguing fo
 
 **Consequences:**
 
-- **A Mac is required for iOS, and the dev machine is a Windows Copilot PC.** Flutter cannot build
-  or sign an iOS app off macOS — this is the hard constraint of the whole phase and it has no
-  workaround on Windows. The repo being **public** resolves it cheaply: GitHub Actions provides
-  free `macos` runners for public repositories, so iOS builds and uploads can run in CI without
-  owning Apple hardware. Confirm that at Phase 7 rather than assuming it, and treat "no Mac" as a
-  live risk until an iOS archive has actually been produced.
+- **A Mac is required for iOS, and none is available locally.** Flutter cannot build or sign an
+  iOS app off macOS — this is the hard constraint of the whole phase. The repo being **public**
+  resolves it cheaply: GitHub Actions provides free `macos` runners for public repositories, so
+  iOS builds and uploads can run in CI without owning Apple hardware. Confirm that at Phase 7
+  rather than assuming it, and treat "no Mac" as a live risk until an iOS archive has actually
+  been produced.
 - **First recurring cost in the project.** Apple Developer Program is charged annually
   (~99 USD at time of writing); Google Play is a one-off registration (~25 USD). Verify both at
   signup. Everything else here has been deliberately free-tier — decision 4 exists precisely to
@@ -1230,35 +1223,34 @@ through review is itself part of the mobile skillset the portfolio is arguing fo
 [decision 44](#44-on-device-project-finder-retrieval-instead-of-generation), which replaced the
 summariser entirely. Supersedes the plan's "using WebLLM" wording for Step 3.3.
 
-**Context:** Step 3.3 named WebLLM, which only runs on WebGPU. LJ's own dev machine — a Copilot PC
-— got "No WebGPU adapter is available" in real Chrome. Research showed this is not a bug in the
-widget: Chrome and Edge ship WebGPU disabled by default on Copilot PCs
+**Context:** Step 3.3 named WebLLM, which only runs on WebGPU. Testing in real Chrome hit "No
+WebGPU adapter is available." Research showed this is not a bug in the widget: Chrome and Edge
+ship WebGPU disabled by default on a specific class of PC hardware
 ([gpuweb/gpuweb#5272](https://github.com/gpuweb/gpuweb/issues/5272), filed against the same
-hardware class), gated behind the experimental `chrome://flags/#enable-unsafe-webgpu` flag. LJ
-enabled that flag and it still found no adapter — a driver-level gap underneath the browser's
-blocklist, not a flag away from fixed. WebLLM has no fallback path for this; it is WebGPU or
-nothing.
+hardware class), gated behind the experimental `chrome://flags/#enable-unsafe-webgpu` flag.
+Enabling that flag still found no adapter — a driver-level gap underneath the browser's blocklist,
+not a flag away from fixed. WebLLM has no fallback path for this; it is WebGPU or nothing.
 
 **Decision:** Replace WebLLM with [transformers.js](https://github.com/huggingface/transformers.js),
 running `onnx-community/Qwen2.5-0.5B-Instruct`. It runs on WASM by default — every browser has
 that — and upgrades to WebGPU automatically when `chooseDevice()` confirms a real adapter with
 `shader-f16` support, rather than trusting `navigator.gpu`'s mere presence (which is exactly what
-was true, and misleading, on LJ's own machine).
+was true, and misleading, in testing).
 
 **Rejected:**
 
 - *Keep WebLLM, improve the failure message only.* Matches the plan exactly and is a smaller
-  change, but does nothing for a visitor on this class of hardware — and LJ's own laptop is that
-  hardware. Asking a recruiter to flip an experimental browser flag is not a real fallback.
+  change, but does nothing for a visitor on this class of hardware. Asking a recruiter to flip an
+  experimental browser flag is not a real fallback.
 - *Run both engines, WebLLM where WebGPU exists and transformers.js elsewhere.* Two inference
   paths to maintain for one small widget, against Principle 2 (Simplicity First) — transformers.js
   alone already covers both cases through one API.
 - *ONNX Runtime Web's own multi-provider fallback* (`device: 'auto'`, letting the runtime try
   WebGPU then WASM itself). Rejected in favour of our own adapter check: `'gpu' in navigator` is
-  all transformers.js's own availability check does internally, which is the exact condition that
-  is true and useless on LJ's machine. Multi-provider EP fallback also has a documented open issue
-  for at least one other provider (webnn) not falling back cleanly on an init error, so a single
-  explicit device chosen ahead of time is more predictable than trusting the chain.
+  all transformers.js's own availability check does internally, which is the exact condition found
+  true and useless in testing. Multi-provider EP fallback also has a documented open issue for at
+  least one other provider (webnn) not falling back cleanly on an init error, so a single explicit
+  device chosen ahead of time is more predictable than trusting the chain.
 
 **Consequences:**
 
@@ -1350,19 +1342,17 @@ runs on WASM, and that whole branch of complexity was deleted along with it.
 
 ---
 
-## 45. Edge Worker tests run in a Linux container; workerd has no Windows ARM64 build
+## 45. Edge Worker tests run in a Linux container; workerd has no build matching the local environment
 
 **Date:** 2026-07-26
 **Status:** accepted
 
-**Context:** `npm install` in `edge/` fails outright on this Copilot PC: `workerd` — the runtime both
-`wrangler` and `@cloudflare/vitest-pool-workers` shell out to — throws `Unsupported platform:
-win32 arm64 LE` from its own install script. Unlike sqlite-vec (decision 26), this isn't a partial
-gap where native `pytest` still runs and only the affected tests skip — `npm install` cannot
-complete at all, so nothing in `edge/` runs natively here, not even a `--dry-run`.
-
-This is the fifth ARM64 packaging trap on this project, after torch (8), the Flutter SDK (9),
-`httptools` (25) and `sqlite-vec` (26).
+**Context:** `npm install` in `edge/` fails outright in the local development environment:
+`workerd` — the runtime both `wrangler` and `@cloudflare/vitest-pool-workers` shell out to —
+throws an `Unsupported platform` error from its own install script for the platform running the
+install. Unlike sqlite-vec (decision 26), this isn't a partial gap where native `pytest` still
+runs and only the affected tests skip — `npm install` cannot complete at all, so nothing in
+`edge/` runs natively here, not even a `--dry-run`.
 
 **Decision:** Run the edge test suite inside a Linux container, exactly the pattern
 `backend/test/` already uses for sqlite-vec: `edge/test/Dockerfile` builds a `node:24-slim` image
@@ -1387,12 +1377,11 @@ binding was never needed for these tests in the first place.
   available here — sqlite-vec's failure is a Python import-time error inside an otherwise-working
   interpreter; `workerd`'s is a fatal `npm install` failure that stops the whole package from
   existing locally. There's no partial state to skip from.
-- *Install workerd's x64 build under Windows' x64 emulation, mirroring decision 9's Flutter SDK
-  workaround.* npm's package resolution picks the platform-tagged optional dependency matching
-  `process.platform`/`process.arch` of the Node binary actually running the install, not an
-  emulation layer beneath it — there is no x64 Node install on this machine to invoke it from, and
-  adding one just to route around a single package felt like more permanent surface than a
-  container that already exists for exactly this class of problem.
+- *Install a second, alternate-platform Node runtime just to get a working `workerd` locally.*
+  npm's package resolution picks the platform-tagged optional dependency matching
+  `process.platform`/`process.arch` of the Node binary actually running the install, so this would
+  need maintaining an entirely separate Node install to route around one package — more permanent
+  surface than a container that already exists for exactly this class of problem.
 
 **Consequences:**
 - Before presenting any edge/ work for verification: `cd edge/test && ./run-tests.sh`, matching
@@ -1837,11 +1826,11 @@ Cloudflare's edge TLS, and the origin certificate together, on every single depl
 
 **Context:** Step 6.2 needed `backend-ci.yml`, `edge-ci.yml`, and `web-ci.yml`. Both `backend/` and
 `edge/` have a Docker-container test path for local use (`backend/test/run-tests.sh`,
-`edge/test/run-tests.sh`), built specifically because this dev machine is Windows on Arm and
-`sqlite-vec` (decision 26) and `workerd` (decision 45) have no wheel/build for that combination.
-Neither limitation has anything to do with Linux itself — GitHub's runners are already Linux (x64),
-where both install natively, as `.github/CLAUDE.md`'s "Runner architecture" section already
-anticipated for the backend case specifically.
+`edge/test/run-tests.sh`), built because `sqlite-vec` (decision 26) and `workerd` (decision 45)
+have no build matching the local development environment. Neither limitation has anything to do
+with Linux itself — GitHub's runners are already Linux (x64), where both install natively, as
+`.github/CLAUDE.md`'s "Runner architecture" section already anticipated for the backend case
+specifically.
 
 Separately, the plan's own Step 6.2 wording ("lint/test") assumed a lint tool existed for the
 backend. None did — `requirements-dev.txt` had only `pytest` and `httpx`. Running `ruff check .`
@@ -1863,8 +1852,8 @@ ruff asks for, not a behaviour change. Verified: the full 159-test suite still p
 
 **Rejected:**
 - *Reuse the Docker containers in CI, matching the local dev workflow exactly.* Would work, but
-  adds a Docker build step and image layer to every CI run for a limitation that is specifically
-  about this Windows Arm dev machine and does not exist on GitHub's own Linux runners at all.
+  adds a Docker build step and image layer to every CI run for a limitation that is specific to
+  the local development environment and does not exist on GitHub's own Linux runners at all.
 - *Skip lint entirely for backend-ci.yml, since none existed before.* The plan explicitly asks for
   "lint/test," and the fixes needed were small and mostly mechanical — not enough reason to leave
   the gap open now that it's been noticed.

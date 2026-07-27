@@ -3,9 +3,10 @@
 Embedded rather than a separate service: no extra process to run, monitor or
 pay for, and nothing else competing for the VM's 12 GB.
 
-Note this requires the sqlite-vec loadable extension, which publishes no
-Windows ARM64 wheel. On the dev machine these code paths run inside a Linux
-container; see backend/test/. The VM (Linux aarch64) and CI both have wheels.
+Note this requires the sqlite-vec loadable extension, which has no wheel
+matching the local development environment. These code paths run inside a
+Linux container locally; see backend/test/. The VM (Linux aarch64) and CI
+both have native wheels.
 """
 
 from __future__ import annotations

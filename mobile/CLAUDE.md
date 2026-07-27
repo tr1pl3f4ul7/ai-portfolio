@@ -61,7 +61,7 @@ flutter build apk --release
 
 ## Environment note
 
-The Flutter SDK here is x64 running under emulation — this dev machine is a Copilot PC and Flutter
-ships no native Arm Windows build. Everything works; builds are just slower than you'd expect.
-`flutter doctor` also warns about a missing Visual Studio C++ workload: that's only needed for
-Flutter **Windows desktop** targets, which are out of scope. Ignore it.
+Flutter's Windows release only ships one SDK build, installed and used as-is. Everything works;
+builds are just slower than you'd expect. `flutter doctor` also warns about a missing Visual
+Studio C++ workload: that's only needed for Flutter **Windows desktop** targets, which are out of
+scope. Ignore it.

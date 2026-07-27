@@ -2,8 +2,8 @@ name: Backend CI
 
 # Runs directly on ubuntu-latest, no container needed — the Docker wrapper
 # backend/test/run-tests.sh uses locally exists only because sqlite-vec has
-# no Windows-on-Arm wheel for this dev machine. GitHub's runners are Linux
-# x64, where sqlite-vec and torch both install natively (see the
+# no wheel matching the local development environment. GitHub's runners are
+# Linux x64, where sqlite-vec and torch both install natively (see the
 # --extra-index-url already declared in requirements.txt).
 on:
   push:

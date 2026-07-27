@@ -3,9 +3,9 @@
 # Run `wrangler dev` for local smoke testing — the plan's own required step
 # before every deploy (edge/CLAUDE.md).
 #
-# workerd has no Windows ARM64 build (docs/decisions.md, decision 45), so this
-# runs in the same Linux container test/Dockerfile builds, with the dev
-# server's port forwarded to the host.
+# workerd has no build matching the local environment (docs/decisions.md,
+# decision 45), so this runs in the same Linux container test/Dockerfile
+# builds, with the dev server's port forwarded to the host.
 #
 # Needs live Cloudflare credentials — Workers AI has no local simulation.
 # Read from edge/.env if present (see .env.example for the shape and how to

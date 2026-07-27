@@ -80,8 +80,8 @@ This project is built from `docs/PROJECT_PLAN.md` **one step at a time, not one 
 - If verification fails, fix and re-run the tests before asking again. Never move on with a
   known failure.
 - Don't override a decision already made in the plan without confirming first. If something is
-  genuinely blocked (a Copilot PC compatibility gap, Oracle capacity), propose the *smallest*
-  viable substitution and record it in `docs/decisions.md`.
+  genuinely blocked (a local environment compatibility gap, Oracle capacity), propose the
+  *smallest* viable substitution and record it in `docs/decisions.md`.
 
 Anything tagged `🧑 MANUAL` in the plan needs step-by-step instructions for LJ **and** an
 explanation of why it can't be automated.
@@ -177,23 +177,22 @@ pre-create files for a phase you haven't reached.**
 
 ## Environment — Read This Before Installing Anything
 
-The dev machine is a **Copilot PC** (Arm-based Windows). This is not a normal x64 box and it bites
-in specific places:
+The local development environment has a few platform quirks that bite in specific places:
 
-- **`pip install torch` fails.** PyPI has zero `win_arm64` wheels. They exist only at
+- **`pip install torch` fails.** No matching PyPI wheel is available locally. Wheels exist at
   `https://download.pytorch.org/whl/cpu`, which `backend/requirements.txt` declares as an extra
   index. This matters because `sentence-transformers/all-MiniLM-L6-v2` depends on torch.
 - **That index is used on *every* platform, not just here.** PyPI's default Linux torch pulls in
   the whole CUDA toolkit — several GB of `nvidia-*` packages. Nothing in this project has a GPU.
-  `torch==2.13.0+cpu` publishes wheels for `win_arm64`, `manylinux_2_28_aarch64` (VM, container)
-  and `manylinux_2_28_x86_64` (CI), so one pin covers every target.
-- **`sqlite-vec` has no Windows-on-Arm wheel at all.** Backend retrieval tests run in a Linux
-  container: `cd backend/test && ./run-tests.sh`. A native `pytest` skips them.
-- **Flutter has no native Windows-on-Arm build.** The x64 SDK runs under emulation. Works, just
-  slower.
-- **`workerd` (what `wrangler` and the edge Worker's test pool both run on) has no Windows-on-Arm
-  build at all** — `npm install` in `edge/` fails outright, not just at test time. Edge tests run
-  in a Linux container the same way: `cd edge/test && ./run-tests.sh`.
+  `torch==2.13.0+cpu` also publishes wheels for `manylinux_2_28_aarch64` (VM, container) and
+  `manylinux_2_28_x86_64` (CI), so one pin covers every target.
+- **`sqlite-vec` has no wheel matching the local environment.** Backend retrieval tests run in a
+  Linux container: `cd backend/test && ./run-tests.sh`. A native `pytest` skips them.
+- **Flutter's Windows release only ships one SDK build** — installed and used as-is; expect
+  builds to run a bit slower than optimal.
+- **`workerd` (what `wrangler` and the edge Worker's test pool both run on) has no build matching
+  the local environment** — `npm install` in `edge/` fails outright, not just at test time. Edge
+  tests run in a Linux container the same way: `cd edge/test && ./run-tests.sh`.
 - Shell is PowerShell 7+; a Bash tool is also available. They take different syntax.
 
 Installed toolchain: Python 3.12.10 (**use this**; 3.11.9 also present but `backend/` targets

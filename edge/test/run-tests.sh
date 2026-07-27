@@ -2,10 +2,10 @@
 #
 # Run the edge Worker's test suite on Linux.
 #
-# workerd has no Windows ARM64 build, so `npm install` and `vitest` cannot run
-# natively on the dev machine at all (not even a partial/skipping run, unlike
-# backend's sqlite-vec gap). This is what must pass before a step is presented
-# for verification.
+# workerd has no build matching the local environment, so `npm install` and
+# `vitest` cannot run natively here at all (not even a partial/skipping run,
+# unlike backend's sqlite-vec gap). This is what must pass before a step is
+# presented for verification.
 #
 # Usage:  ./run-tests.sh [vitest args...]
 # Requires: docker

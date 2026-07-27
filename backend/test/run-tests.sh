@@ -2,9 +2,10 @@
 #
 # Run the full backend test suite on Linux.
 #
-# sqlite-vec has no Windows ARM64 wheel, so retrieval tests cannot run natively
-# on the dev machine. Running `pytest` there still works — those tests skip —
-# but this is what must pass before a step is presented for verification.
+# sqlite-vec has no wheel matching the local environment, so retrieval tests
+# cannot run natively here. Running `pytest` locally still works — those
+# tests skip — but this is what must pass before a step is presented for
+# verification.
 #
 # Usage:  ./run-tests.sh [pytest args...]
 # Requires: docker

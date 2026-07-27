@@ -60,5 +60,5 @@ different architecture than production. That's acceptable for pure-Python tests,
 green does **not** prove the VM install works — which is exactly why the post-deploy `/health`
 smoke test is mandatory rather than nice-to-have.
 
-Don't add the local ARM64 torch index (`download.pytorch.org/whl/cpu`) to CI. That's a Copilot PC
-dev-machine workaround; Linux runners resolve torch from PyPI normally.
+Don't add the local torch index (`download.pytorch.org/whl/cpu`) to CI. That's a local-environment
+workaround; Linux runners resolve torch from PyPI normally.

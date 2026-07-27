@@ -2,8 +2,8 @@ name: Edge CI
 
 # Runs directly on ubuntu-latest, no container needed — the Docker wrapper
 # edge/test/run-tests.sh uses locally exists only because workerd has no
-# Windows-on-Arm build for this dev machine (decision 45). GitHub's runners
-# are Linux x64, where workerd installs natively.
+# build matching the local development environment (decision 45). GitHub's
+# runners are Linux x64, where workerd installs natively.
 on:
   push:
     branches: [master]

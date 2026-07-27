@@ -3,10 +3,10 @@
 This is the test Step 2.2 of the build plan asks for: a known query must return
 the expected chunk in the top-k results.
 
-Requires the sqlite-vec extension, which has no Windows ARM64 wheel, and the
-embedding model. These run in the Linux container — see backend/test/. They
-skip rather than fail where sqlite-vec is unavailable, so the rest of the suite
-stays usable on the dev machine.
+Requires the sqlite-vec extension, which has no wheel matching the local
+development environment, and the embedding model. These run in the Linux
+container — see backend/test/. They skip rather than fail where sqlite-vec
+is unavailable, so the rest of the suite stays usable locally.
 """
 
 from __future__ import annotations
@@ -18,7 +18,7 @@ from app.ingest import load_chunks
 
 sqlite_vec = pytest.importorskip(
     "sqlite_vec",
-    reason="sqlite-vec has no Windows ARM64 wheel; run these in the Linux container",
+    reason="sqlite-vec has no wheel matching the local environment; run these in the Linux container",
 )
 
 
