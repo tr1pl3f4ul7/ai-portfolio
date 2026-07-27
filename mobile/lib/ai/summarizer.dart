@@ -11,8 +11,26 @@ import 'package:flutter_local_ai/flutter_local_ai.dart';
 /// not the plugin directly — widget tests substitute a fake implementation
 /// rather than exercising a real platform channel.
 abstract class OnDeviceSummarizer {
+  /// Which backend is behind this device (Apple Foundation Models, ML Kit
+  /// GenAI, unsupported, ...) and what it can do — in particular whether a
+  /// one-time model download is a real state this device can be in.
+  Future<LocalAiPlatformInfo> getPlatformInfo();
+
   Future<bool> isAvailable();
   Future<String> availabilityReason();
+
+  /// Android-only: whether the model is ready, needs downloading, or is
+  /// already downloading. Only call this when
+  /// [LocalAiPlatformInfo.supportsModelDownload] is true.
+  Future<ModelFeatureStatus> getModelStatus();
+
+  /// Android-only: triggers the model download and streams progress.
+  Stream<ModelDownloadStatus> downloadModel();
+
+  /// Android-only: opens the Play Store listing for Google AICore, for when
+  /// it's missing or outdated (error -101).
+  Future<bool> openAICorePlayStore();
+
   Future<String> summarize(String text);
 }
 
@@ -24,10 +42,22 @@ class FlutterLocalAiSummarizer implements OnDeviceSummarizer {
     : _engine = engine ?? FlutterLocalAi();
 
   @override
+  Future<LocalAiPlatformInfo> getPlatformInfo() => _engine.getPlatformInfo();
+
+  @override
   Future<bool> isAvailable() => _engine.isAvailable();
 
   @override
   Future<String> availabilityReason() => _engine.availabilityReason();
+
+  @override
+  Future<ModelFeatureStatus> getModelStatus() => _engine.getModelStatus();
+
+  @override
+  Stream<ModelDownloadStatus> downloadModel() => _engine.downloadModel();
+
+  @override
+  Future<bool> openAICorePlayStore() => _engine.openAICorePlayStore();
 
   @override
   Future<String> summarize(String text) async {

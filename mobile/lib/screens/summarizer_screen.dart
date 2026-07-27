@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter_local_ai/flutter_local_ai.dart';
 
 import '../ai/summarizer.dart';
 import '../api/client.dart';
@@ -7,9 +10,10 @@ import '../theme/tokens.dart';
 import 'async_content.dart';
 
 /// On-device summarizer. Fetches its section copy from the backend, then
-/// drives `flutter_local_ai` through three states — availability check,
-/// summarizing, result/error — never falling back to a network call if the
-/// on-device model isn't there (mobile/CLAUDE.md).
+/// drives `flutter_local_ai` through every real state a device can be in:
+/// unsupported, supported-but-needs-a-download (Android's Gemini Nano),
+/// downloading, and ready — never falling back to a network call at any
+/// point (mobile/CLAUDE.md).
 class SummarizerScreen extends StatelessWidget {
   final ApiClient apiClient;
   final OnDeviceSummarizer? summarizer;
@@ -28,7 +32,16 @@ class SummarizerScreen extends StatelessWidget {
   }
 }
 
-enum _Status { checkingAvailability, unavailable, ready, summarizing, result, error }
+enum _Status {
+  checkingAvailability,
+  unavailable,
+  downloadable,
+  downloading,
+  ready,
+  summarizing,
+  result,
+  error,
+}
 
 class _SummarizerBody extends StatefulWidget {
   final SummarizerContent content;
@@ -42,9 +55,12 @@ class _SummarizerBody extends StatefulWidget {
 
 class _SummarizerBodyState extends State<_SummarizerBody> {
   _Status _status = _Status.checkingAvailability;
+  LocalAiPlatformInfo? _platformInfo;
   String? _unavailableReason;
+  int? _downloadedBytes;
   String? _summary;
   String? _errorMessage;
+  StreamSubscription<ModelDownloadStatus>? _downloadSub;
 
   @override
   void initState() {
@@ -52,19 +68,77 @@ class _SummarizerBodyState extends State<_SummarizerBody> {
     _checkAvailability();
   }
 
+  @override
+  void dispose() {
+    _downloadSub?.cancel();
+    super.dispose();
+  }
+
   Future<void> _checkAvailability() async {
+    final info = await widget.summarizer.getPlatformInfo();
+    if (!mounted) return;
+    _platformInfo = info;
+
     final available = await widget.summarizer.isAvailable();
     if (!mounted) return;
-    if (!available) {
-      final reason = await widget.summarizer.availabilityReason();
-      if (!mounted) return;
-      setState(() {
-        _status = _Status.unavailable;
-        _unavailableReason = reason;
-      });
+    if (available) {
+      setState(() => _status = _Status.ready);
       return;
     }
-    setState(() => _status = _Status.ready);
+
+    if (info.supportsModelDownload) {
+      final modelStatus = await widget.summarizer.getModelStatus();
+      if (!mounted) return;
+      if (modelStatus == ModelFeatureStatus.downloadable) {
+        setState(() => _status = _Status.downloadable);
+        return;
+      }
+      if (modelStatus == ModelFeatureStatus.downloading) {
+        _startDownload();
+        return;
+      }
+    }
+
+    final reason = await widget.summarizer.availabilityReason();
+    if (!mounted) return;
+    setState(() {
+      _status = _Status.unavailable;
+      _unavailableReason = reason;
+    });
+  }
+
+  void _startDownload() {
+    setState(() {
+      _status = _Status.downloading;
+      _downloadedBytes = null;
+    });
+
+    _downloadSub = widget.summarizer.downloadModel().listen(
+      (status) {
+        if (!mounted) return;
+        switch (status.type) {
+          case ModelDownloadStatusType.progress:
+            setState(() => _downloadedBytes = status.totalBytesDownloaded);
+          case ModelDownloadStatusType.completed:
+            setState(() => _status = _Status.ready);
+          case ModelDownloadStatusType.failed:
+            setState(() {
+              _status = _Status.unavailable;
+              _unavailableReason = status.errorMessage ?? 'The model download failed.';
+            });
+          case ModelDownloadStatusType.started:
+          case ModelDownloadStatusType.unknown:
+            break;
+        }
+      },
+      onError: (_) {
+        if (!mounted) return;
+        setState(() {
+          _status = _Status.unavailable;
+          _unavailableReason = 'The model download failed.';
+        });
+      },
+    );
   }
 
   Future<void> _summarize() async {
@@ -138,6 +212,49 @@ class _SummarizerBodyState extends State<_SummarizerBody> {
           icon: Icons.info_outline,
           color: Tokens.inkDim,
           text: _unavailableReason ?? 'On-device summarization is not available on this device.',
+          action: (_platformInfo?.supportsPlayStoreRedirect ?? false)
+              ? OutlinedButton(
+                  onPressed: () => widget.summarizer.openAICorePlayStore(),
+                  child: const Text('Open Play Store'),
+                )
+              : null,
+        );
+
+      case _Status.downloadable:
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'The on-device model needs a one-time download before it can run.',
+              style: TextStyle(color: Tokens.inkDim, height: 1.4),
+            ),
+            const SizedBox(height: Tokens.space3),
+            FilledButton.icon(
+              onPressed: _startDownload,
+              icon: const Icon(Icons.download_outlined),
+              label: const Text('Download model'),
+            ),
+          ],
+        );
+
+      case _Status.downloading:
+        return Row(
+          children: [
+            const SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+            const SizedBox(width: Tokens.space3),
+            Expanded(
+              child: Text(
+                _downloadedBytes != null
+                    ? 'Downloading the model — ${(_downloadedBytes! / (1024 * 1024)).toStringAsFixed(1)} MB so far…'
+                    : 'Downloading the model…',
+                style: const TextStyle(color: Tokens.inkDim),
+              ),
+            ),
+          ],
         );
 
       case _Status.ready:
