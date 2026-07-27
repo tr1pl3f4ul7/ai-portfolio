@@ -223,6 +223,10 @@ describe("failures", () => {
 
 describe("suggested prompts", () => {
   it("submits the prompt when one is clicked", async () => {
+    // Suggestions come from GET /content/ask now (decision 57), not a
+    // hardcoded list — the shared beforeEach's plain mountChat(root) renders
+    // none, so this test mounts its own with some to click.
+    mountChat(root, { suggestions: ["What's the hardest thing you've built?"] });
     askQuestion.mockResolvedValue({ answer: "Answered.", sources: [] });
 
     root.querySelector<HTMLButtonElement>(".chat-prompt")!.click();

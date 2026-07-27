@@ -102,3 +102,75 @@ class ErrorResponse(BaseModel):
     """Body returned with every non-2xx response from this API."""
 
     detail: str
+
+
+# --- Content -----------------------------------------------------------------
+#
+# Portfolio copy, served so it can be edited once (a JSON file, a commit, a
+# backend deploy) without a web rebuild or an app-store resubmission for
+# mobile. Source files live in data/content/ — see app/content.py.
+
+
+class ProfileContent(BaseModel):
+    """Hero copy — the web hero and the mobile Home tab share this."""
+
+    name: str
+    location: str
+    tagline: str
+
+
+class SectionContent(BaseModel):
+    """The label/heading/description shape several sections share."""
+
+    label: str
+    heading: str
+    description: str
+
+
+class BrowserContent(SectionContent):
+    """Web's on-device project-finder section copy.
+
+    Web-only: mobile has no on-device search, it has the summarizer instead —
+    the direct counterpart is `SummarizerContent`, not this.
+    """
+
+
+class SummarizerContent(SectionContent):
+    """Mobile's on-device section copy, plus the source text it condenses.
+
+    Mobile-only, the direct counterpart to `BrowserContent`.
+    """
+
+    source_text: str
+
+
+class AskContent(SectionContent):
+    """Chat section copy, shared by web and mobile."""
+
+    suggestions: list[str]
+
+
+class ContactContent(SectionContent):
+    """Contact section copy, shared by web and mobile."""
+
+
+class ProjectItem(BaseModel):
+    """One project card."""
+
+    company: str
+    year: str
+    name: str
+    note: str
+
+
+class ProjectsContent(BaseModel):
+    """The project cards.
+
+    Shared by web's "selected work" grid, web's on-device finder (which
+    matches against these as its corpus — decision 44), and mobile's
+    Projects tab.
+    """
+
+    label: str
+    heading: str
+    items: list[ProjectItem]

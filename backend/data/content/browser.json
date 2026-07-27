@@ -1,0 +1,5 @@
+{
+  "label": "browser",
+  "heading": "ask which project fits, on your machine",
+  "description": "Type what you're after and a small model embeds your question, compares it against my real projects below, and points at the closest match — entirely on your device, no request goes out. It can't invent a project that doesn't exist; it can only find the nearest real one. About 50 MB, downloaded once and cached by your browser."
+}

@@ -1,0 +1,5 @@
+{
+  "label": "contact",
+  "heading": "say hello",
+  "description": "This goes to a triage endpoint that classifies it, drafts me a reply, and emails me. You'll get a reference back."
+}

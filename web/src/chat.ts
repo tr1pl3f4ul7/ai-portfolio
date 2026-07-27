@@ -15,13 +15,6 @@ import { ApiError, askQuestion, type Source } from "./api";
 
 const PLACEHOLDER = "Ask about my work…";
 
-/** Suggestions that exercise different parts of the corpus. */
-const PROMPTS = [
-  "What's the hardest thing you've built?",
-  "Do you have security experience?",
-  "Tell me about your VR work.",
-];
-
 /**
  * Strip markdown emphasis from an answer.
  *
@@ -93,6 +86,8 @@ export interface ChatOptions {
    * instead of a placeholder.
    */
   onAnswered?: (elapsedMs: number) => void;
+  /** From GET /content/ask (decision 57) — never hardcoded here. */
+  suggestions?: string[];
 }
 
 export function mountChat(root: HTMLElement, options: ChatOptions = {}): void {
@@ -122,7 +117,7 @@ export function mountChat(root: HTMLElement, options: ChatOptions = {}): void {
   form.append(label, input, button);
 
   const suggestions = el("div", "chat-prompts");
-  for (const prompt of PROMPTS) {
+  for (const prompt of options.suggestions ?? []) {
     const chip = el("button", "chat-prompt", prompt);
     chip.type = "button";
     chip.addEventListener("click", () => {

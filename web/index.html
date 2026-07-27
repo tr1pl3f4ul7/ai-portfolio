@@ -24,16 +24,14 @@
 
     <main class="page">
       <!-- ================= HERO ================= -->
+      <!-- Text content fetched from GET /content/profile (decision 57) — see
+           src/render-content.ts. Empty here on purpose: no hardcoded copy to
+           drift out of sync with the backend. -->
       <header class="hero">
         <div class="hero-intro">
-          <p class="label">brisbane, australia</p>
-          <h1 class="display">ljuben vassilev</h1>
-          <p class="lede">
-            Frameworks, tools and models don't matter, satisfied customers
-            do! Ten years of mobile built the judgement. Now I'm pointing it
-            at AI: this page runs inference in four different places, each
-            picked for what the problem actually needed.
-          </p>
+          <p class="label" id="hero-location"></p>
+          <h1 class="display" id="hero-name"></h1>
+          <p class="lede" id="hero-tagline"></p>
         </div>
 
         <!-- The thesis, as a component. Timings fill in as you use the page;
@@ -75,205 +73,48 @@
       </header>
 
       <!-- ================= ON-DEVICE PROJECT FINDER ================= -->
+      <!-- Section copy fetched from GET /content/browser (web-only). -->
       <section class="section" data-reveal>
         <div class="section-head">
-          <p class="label">browser</p>
-          <h2 class="heading">ask which project fits, on your machine</h2>
+          <p class="label" id="browser-label"></p>
+          <h2 class="heading" id="browser-heading"></h2>
         </div>
-        <p class="prose">
-          Type what you're after and a small model embeds your question,
-          compares it against my real projects below, and points at the
-          closest match — entirely on your device, no request goes out. It
-          can't invent a project that doesn't exist; it can only find the
-          nearest real one. About 50 MB, downloaded once and cached by your
-          browser.
-        </p>
+        <p class="prose" id="browser-description"></p>
         <div id="finder" class="finder"></div>
       </section>
 
       <!-- ================= CHAT ================= -->
+      <!-- Section copy fetched from GET /content/ask, shared with mobile. -->
       <section class="section" data-reveal>
         <div class="section-head">
-          <p class="label">ask</p>
-          <h2 class="heading">two of those layers, right now</h2>
+          <p class="label" id="ask-label"></p>
+          <h2 class="heading" id="ask-heading"></h2>
         </div>
-        <p class="prose">
-          This retrieves from a vector store on my own server, then asks Claude to
-          answer only from what it found. It cites the sections it used, and shows
-          you the real round trip.
-        </p>
+        <p class="prose" id="ask-description"></p>
         <div id="chat" class="chat"></div>
       </section>
 
       <!-- ================= WORK ================= -->
+      <!-- Section copy and every card fetched from GET /content/projects,
+           shared with mobile's Projects tab and web's own on-device finder
+           (decision 44) — nothing here is hardcoded. -->
       <section class="section" data-reveal>
         <div class="section-head">
-          <p class="label">selected work</p>
-          <h2 class="heading">things that had to not break</h2>
+          <p class="label" id="projects-label"></p>
+          <h2 class="heading" id="projects-heading"></h2>
         </div>
 
-        <ol class="work">
-          <li class="work-item">
-            <p class="work-meta">propertyme · 2022–2026</p>
-            <h3 class="work-name">PropertyMe</h3>
-            <p class="work-note">
-              Flutter app for property owners and tenants, two audiences through
-              one codebase. His main product for four years.
-            </p>
-          </li>
-          <li class="work-item">
-            <p class="work-meta">propertyme · 2022–2026</p>
-            <h3 class="work-name">PropertyMe Agent</h3>
-            <p class="work-note">
-              The mobile counterpart for property managers doing the job away
-              from a desk — inspections, appointments, workflow the owner and
-              tenant app doesn't carry. Shares a backend with its sibling app.
-            </p>
-          </li>
-          <li class="work-item">
-            <p class="work-meta">gruntify · 2021</p>
-            <h3 class="work-name">Gruntify</h3>
-            <p class="work-note">
-              Android GIS platform for field workers — inspection teams and crews
-              on site, with AR features. Several Australian local government
-              councils are clients, alongside enterprise SaaS customers.
-            </p>
-          </li>
-          <li class="work-item">
-            <p class="work-meta">ozone.bg · 2019</p>
-            <h3 class="work-name">Ozone Warehouse</h3>
-            <p class="work-note">
-              Android on industrial barcode scanners — kiosk mode, self-updating,
-              five warehouse processes off paper. If it stopped, the warehouse
-              stopped.
-            </p>
-          </li>
-          <li class="work-item">
-            <p class="work-meta">vreestory · 2019</p>
-            <h3 class="work-name">Wincanton Fire Safety</h3>
-            <p class="work-note">
-              VR fire-safety training for a UK logistics company — rehearsing
-              dangerous procedures without the danger, the most clearly
-              justified use of VR on this list.
-            </p>
-          </li>
-          <li class="work-item">
-            <p class="work-meta">ozone.bg · 2019</p>
-            <h3 class="work-name">Ozone Transport</h3>
-            <p class="work-note">
-              Android app for company drivers — daily delivery tasks, live
-              reporting per stop, and parcel barcode scanning with the phone
-              camera. Built in-house alongside Ozone Warehouse.
-            </p>
-          </li>
-          <li class="work-item">
-            <p class="work-meta">vreestory · 2019</p>
-            <h3 class="work-name">Hood VR</h3>
-            <p class="work-note">
-              VR recycling game built for Romania's Ministry of National
-              Education, presented in more than 20 schools — the widest reach
-              of anything here.
-            </p>
-          </li>
-          <li class="work-item">
-            <p class="work-meta">musala soft · 2019</p>
-            <h3 class="work-name">Montblanc Hub</h3>
-            <p class="work-note">
-              Companion app for Montblanc's smart writing set. Added support for a
-              graphic tablet that was still in the hardware workshop, and moved it
-              from A5 to A4.
-            </p>
-          </li>
-          <li class="work-item">
-            <p class="work-meta">software group · 2018</p>
-            <h3 class="work-name">Atlantic Money</h3>
-            <p class="work-note">
-              Banking outside the branch — a mobile app letting a financial
-              institution's representatives serve customers in Cameroon,
-              where branch infrastructure doesn't reach.
-            </p>
-          </li>
-          <li class="work-item">
-            <p class="work-meta">vreestory · 2018</p>
-            <h3 class="work-name">OMV VR</h3>
-            <p class="work-note">
-              Promotional VR game for a fuel brand, never shipped to a store —
-              delivered instead at live events, touring the country with GearVR
-              headsets.
-            </p>
-          </li>
-          <li class="work-item">
-            <p class="work-meta">personal project · 2018</p>
-            <h3 class="work-name">Stylebox</h3>
-            <p class="work-note">
-              An OpenCart store built for free, in his own time, for his
-              mother's business — plus a companion WebView app. Went on to
-              generate real revenue before the business closed.
-            </p>
-          </li>
-          <li class="work-item">
-            <p class="work-meta">solvedout · 2017</p>
-            <h3 class="work-name">Hellboy VR</h3>
-            <p class="work-note">
-              Dual 8K stereoscopic video on phone-driven headsets, for Lions Gate.
-              No active cooling, one frame budget.
-            </p>
-          </li>
-          <li class="work-item">
-            <p class="work-meta">allterco · 2017</p>
-            <h3 class="work-name">MyKi</h3>
-            <p class="work-note">
-              Children's smartwatch companion — and the games running on the watch
-              itself, in Java, on a very small screen.
-            </p>
-          </li>
-          <li class="work-item">
-            <p class="work-meta">allterco · 2017</p>
-            <h3 class="work-name">Mtel TV Box</h3>
-            <p class="work-note">
-              Launcher for a set-top box from Mtel, Bulgaria's largest mobile
-              operator. Remote-control navigation, ten-foot interface, not a phone.
-            </p>
-          </li>
-          <li class="work-item">
-            <p class="work-meta">allterco · 2017</p>
-            <h3 class="work-name">Madara Rider AR</h3>
-            <p class="work-note">
-              AR tourism proof of concept — recognises Bulgaria's Madara Rider
-              rock relief and plays a promotional video, built with Vuforia on
-              Unity3D. A fast technology evaluation, not delivered work.
-            </p>
-          </li>
-          <li class="work-item">
-            <p class="work-meta">allterco · 2016–2017</p>
-            <h3 class="work-name">Neonatal monitoring</h3>
-            <p class="work-note">
-              Tablet app reading pulse oximeters for newborns over Bluetooth Low
-              Energy, against firmware that changed underneath it.
-            </p>
-          </li>
-          <li class="work-item">
-            <p class="work-meta">allterco · 2016</p>
-            <h3 class="work-name">Happy Call</h3>
-            <p class="work-note">
-              WebView Android app providing a ringback tone service for a
-              telecoms operator, using Firebase notifications. One of his
-              first professional projects.
-            </p>
-          </li>
-        </ol>
+        <ol class="work" id="work-list"></ol>
       </section>
 
       <!-- ================= CONTACT ================= -->
+      <!-- Section copy fetched from GET /content/contact, shared with mobile. -->
       <section class="section" data-reveal>
         <div class="section-head">
-          <p class="label">contact</p>
-          <h2 class="heading">say hello</h2>
+          <p class="label" id="contact-label"></p>
+          <h2 class="heading" id="contact-heading"></h2>
         </div>
-        <p class="prose">
-          This goes to a triage endpoint that classifies it, drafts me a reply, and
-          emails me. You'll get a reference back.
-        </p>
+        <p class="prose" id="contact-description"></p>
         <div id="contact" class="contact"></div>
       </section>
 

@@ -7,11 +7,13 @@
  */
 
 import { initAnalytics, track } from "./analytics";
+import { getAskContent, getBrowserContent, getContactContent, getProfile, getProjects } from "./api";
 import { mountChat } from "./chat";
 import { mountContact } from "./contact";
 import { mountMotion } from "./motion";
-import { initSentry } from "./observability";
+import { initSentry, reportError } from "./observability";
 import { mountProjectFinder } from "./project-finder";
+import { renderContent, type PageContent } from "./render-content";
 
 // Init as early as possible so both catch anything that happens below —
 // no-ops without a key/DSN, which is the case on a dev machine and in CI.
@@ -60,13 +62,57 @@ function recordOnDevice(elapsedMs: number): void {
   track("project finder used");
 }
 
-const finder = document.querySelector<HTMLElement>("#finder");
-if (finder) mountProjectFinder(finder, { onMatched: recordOnDevice });
-
-const chat = document.querySelector<HTMLElement>("#chat");
-if (chat) mountChat(chat, { onAnswered: recordRoundTrip });
-
-const contact = document.querySelector<HTMLElement>("#contact");
-if (contact) mountContact(contact, { onSubmitted: () => track("form submitted") });
-
 mountMotion();
+
+/**
+ * Show something honest if the content fetch fails, rather than a page with
+ * a blank hero and no explanation (web/CLAUDE.md: "degrade honestly").
+ * Reported to Sentry too — a caught error is otherwise invisible to it.
+ */
+function showContentLoadFailure(error: unknown): void {
+  console.error("Failed to load page content:", error);
+  void reportError(error);
+
+  const hero = document.querySelector<HTMLElement>(".hero-intro");
+  if (!hero) return;
+  hero.replaceChildren();
+  const message = document.createElement("p");
+  message.className = "lede";
+  message.textContent = "Content failed to load. Try refreshing.";
+  hero.append(message);
+}
+
+/**
+ * Every section's text — hero, section copy, the project cards — comes from
+ * the backend now (decision 57), not hardcoded HTML. Fetched once, up front,
+ * before anything mounts: a widget that mounted against empty content would
+ * be a worse failure mode than the whole page waiting the extra moment this
+ * takes, which given the payload size here is close to nothing.
+ */
+void (async () => {
+  let content: PageContent;
+  try {
+    const [profile, browser, ask, contact, projects] = await Promise.all([
+      getProfile(),
+      getBrowserContent(),
+      getAskContent(),
+      getContactContent(),
+      getProjects(),
+    ]);
+    content = { profile, browser, ask, contact, projects };
+  } catch (error) {
+    showContentLoadFailure(error);
+    return;
+  }
+
+  renderContent(content);
+
+  const finder = document.querySelector<HTMLElement>("#finder");
+  if (finder) mountProjectFinder(finder, { onMatched: recordOnDevice });
+
+  const chat = document.querySelector<HTMLElement>("#chat");
+  if (chat) mountChat(chat, { onAnswered: recordRoundTrip, suggestions: content.ask.suggestions });
+
+  const contactEl = document.querySelector<HTMLElement>("#contact");
+  if (contactEl) mountContact(contactEl, { onSubmitted: () => track("form submitted") });
+})();

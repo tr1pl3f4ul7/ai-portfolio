@@ -12,19 +12,25 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from app import notify, observability, rag, ratelimit, submissions, triage
+from app import content, notify, observability, rag, ratelimit, submissions, triage
 from app.config import (
     ALLOWED_ORIGINS,
     CONTACT_DAILY_LIMIT_PER_IP,
     CONTACT_DAILY_LIMIT_TOTAL,
 )
 from app.schemas import (
+    AskContent,
+    BrowserContent,
     ChatRequest,
     ChatResponse,
+    ContactContent,
     ContactRequest,
     ContactResponse,
     ErrorResponse,
+    ProfileContent,
+    ProjectsContent,
     Source,
+    SummarizerContent,
 )
 
 # Before the app is constructed: Sentry's ASGI integration wraps the app at
@@ -76,7 +82,7 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
-    allow_methods=["POST"],
+    allow_methods=["GET", "POST"],
     allow_headers=["content-type"],
 )
 
@@ -98,6 +104,49 @@ def health() -> HealthResponse:
     readiness endpoint if they are ever needed.
     """
     return HealthResponse(status="ok")
+
+
+# --- Content -------------------------------------------------------------
+#
+# Portfolio copy — see app/content.py. Each endpoint returns the same object
+# loaded once at import; no per-request disk I/O, no rate limit (a static
+# read, not something that costs money to serve).
+
+
+@app.get("/content/profile", response_model=ProfileContent)
+def content_profile() -> ProfileContent:
+    """Hero copy — the web hero and the mobile Home tab share this."""
+    return content.PROFILE
+
+
+@app.get("/content/browser", response_model=BrowserContent)
+def content_browser() -> BrowserContent:
+    """Web's on-device project-finder section copy. Web-only."""
+    return content.BROWSER
+
+
+@app.get("/content/summarizer", response_model=SummarizerContent)
+def content_summarizer() -> SummarizerContent:
+    """Mobile's on-device section copy and source text. Mobile-only."""
+    return content.SUMMARIZER
+
+
+@app.get("/content/ask", response_model=AskContent)
+def content_ask() -> AskContent:
+    """Chat section copy, shared by web and mobile."""
+    return content.ASK
+
+
+@app.get("/content/contact", response_model=ContactContent)
+def content_contact() -> ContactContent:
+    """Contact section copy, shared by web and mobile."""
+    return content.CONTACT
+
+
+@app.get("/content/projects", response_model=ProjectsContent)
+def content_projects() -> ProjectsContent:
+    """The project cards — web's grid, its on-device finder, and mobile's Projects tab."""
+    return content.PROJECTS
 
 
 @app.post(

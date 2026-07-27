@@ -1,0 +1,108 @@
+{
+  "label": "selected work",
+  "heading": "things that had to not break",
+  "items": [
+    {
+      "company": "propertyme",
+      "year": "2022–2026",
+      "name": "PropertyMe",
+      "note": "Flutter app for property owners and tenants, two audiences through one codebase. His main product for four years."
+    },
+    {
+      "company": "propertyme",
+      "year": "2022–2026",
+      "name": "PropertyMe Agent",
+      "note": "The mobile counterpart for property managers doing the job away from a desk — inspections, appointments, workflow the owner and tenant app doesn't carry. Shares a backend with its sibling app."
+    },
+    {
+      "company": "gruntify",
+      "year": "2021",
+      "name": "Gruntify",
+      "note": "Android GIS platform for field workers — inspection teams and crews on site, with AR features. Several Australian local government councils are clients, alongside enterprise SaaS customers."
+    },
+    {
+      "company": "ozone.bg",
+      "year": "2019",
+      "name": "Ozone Warehouse",
+      "note": "Android on industrial barcode scanners — kiosk mode, self-updating, five warehouse processes off paper. If it stopped, the warehouse stopped."
+    },
+    {
+      "company": "vreestory",
+      "year": "2019",
+      "name": "Wincanton Fire Safety",
+      "note": "VR fire-safety training for a UK logistics company — rehearsing dangerous procedures without the danger, the most clearly justified use of VR on this list."
+    },
+    {
+      "company": "ozone.bg",
+      "year": "2019",
+      "name": "Ozone Transport",
+      "note": "Android app for company drivers — daily delivery tasks, live reporting per stop, and parcel barcode scanning with the phone camera. Built in-house alongside Ozone Warehouse."
+    },
+    {
+      "company": "vreestory",
+      "year": "2019",
+      "name": "Hood VR",
+      "note": "VR recycling game built for Romania's Ministry of National Education, presented in more than 20 schools — the widest reach of anything here."
+    },
+    {
+      "company": "musala soft",
+      "year": "2019",
+      "name": "Montblanc Hub",
+      "note": "Companion app for Montblanc's smart writing set. Added support for a graphic tablet that was still in the hardware workshop, and moved it from A5 to A4."
+    },
+    {
+      "company": "software group",
+      "year": "2018",
+      "name": "Atlantic Money",
+      "note": "Banking outside the branch — a mobile app letting a financial institution's representatives serve customers in Cameroon, where branch infrastructure doesn't reach."
+    },
+    {
+      "company": "vreestory",
+      "year": "2018",
+      "name": "OMV VR",
+      "note": "Promotional VR game for a fuel brand, never shipped to a store — delivered instead at live events, touring the country with GearVR headsets."
+    },
+    {
+      "company": "personal project",
+      "year": "2018",
+      "name": "Stylebox",
+      "note": "An OpenCart store built for free, in his own time, for his mother's business — plus a companion WebView app. Went on to generate real revenue before the business closed."
+    },
+    {
+      "company": "solvedout",
+      "year": "2017",
+      "name": "Hellboy VR",
+      "note": "Dual 8K stereoscopic video on phone-driven headsets, for Lions Gate. No active cooling, one frame budget."
+    },
+    {
+      "company": "allterco",
+      "year": "2017",
+      "name": "MyKi",
+      "note": "Children's smartwatch companion — and the games running on the watch itself, in Java, on a very small screen."
+    },
+    {
+      "company": "allterco",
+      "year": "2017",
+      "name": "Mtel TV Box",
+      "note": "Launcher for a set-top box from Mtel, Bulgaria's largest mobile operator. Remote-control navigation, ten-foot interface, not a phone."
+    },
+    {
+      "company": "allterco",
+      "year": "2017",
+      "name": "Madara Rider AR",
+      "note": "AR tourism proof of concept — recognises Bulgaria's Madara Rider rock relief and plays a promotional video, built with Vuforia on Unity3D. A fast technology evaluation, not delivered work."
+    },
+    {
+      "company": "allterco",
+      "year": "2016–2017",
+      "name": "Neonatal monitoring",
+      "note": "Tablet app reading pulse oximeters for newborns over Bluetooth Low Energy, against firmware that changed underneath it."
+    },
+    {
+      "company": "allterco",
+      "year": "2016",
+      "name": "Happy Call",
+      "note": "WebView Android app providing a ringback tone service for a telecoms operator, using Firebase notifications. One of his first professional projects."
+    }
+  ]
+}

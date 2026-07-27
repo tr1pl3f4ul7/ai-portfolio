@@ -34,6 +34,46 @@ export interface ContactResponse {
   reference: string;
 }
 
+// --- Content (mirror backend/app/content.py + schemas.py) -------------------
+//
+// Portfolio copy, fetched rather than hardcoded — see decision 57's write-up
+// on why: one edit on the backend reaches web and mobile without a rebuild
+// or an app-store resubmission. Only the sections web actually uses; the
+// mobile-only `summarizer` content has no client here.
+
+export interface ProfileContent {
+  name: string;
+  location: string;
+  tagline: string;
+}
+
+export interface SectionContent {
+  label: string;
+  heading: string;
+  description: string;
+}
+
+export type BrowserContent = SectionContent;
+
+export interface AskContent extends SectionContent {
+  suggestions: string[];
+}
+
+export type ContactContent = SectionContent;
+
+export interface ProjectItem {
+  company: string;
+  year: string;
+  name: string;
+  note: string;
+}
+
+export interface ProjectsContent {
+  label: string;
+  heading: string;
+  items: ProjectItem[];
+}
+
 // --- Failures ---------------------------------------------------------------
 
 /**
@@ -77,18 +117,13 @@ async function readDetail(response: Response): Promise<string | null> {
   }
 }
 
-async function postJson<T>(baseUrl: string, path: string, payload: unknown): Promise<T> {
+async function request<T>(baseUrl: string, path: string, init: RequestInit): Promise<T> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
   let response: Response;
   try {
-    response = await fetch(`${baseUrl}${path}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-      signal: controller.signal,
-    });
+    response = await fetch(`${baseUrl}${path}`, { ...init, signal: controller.signal });
   } catch (cause) {
     const aborted = cause instanceof DOMException && cause.name === "AbortError";
     throw new ApiError(
@@ -110,6 +145,18 @@ async function postJson<T>(baseUrl: string, path: string, payload: unknown): Pro
   return (await response.json()) as T;
 }
 
+function postJson<T>(baseUrl: string, path: string, payload: unknown): Promise<T> {
+  return request<T>(baseUrl, path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
+function getJson<T>(baseUrl: string, path: string): Promise<T> {
+  return request<T>(baseUrl, path, { method: "GET" });
+}
+
 // --- Endpoints ---------------------------------------------------------------
 
 /** Ask the RAG chatbot. Retrieval on the VM, generation at the Claude API. */
@@ -121,4 +168,32 @@ export function askQuestion(question: string): Promise<ChatResponse> {
  * backend directly — see config.ts. */
 export function submitContact(submission: ContactRequest): Promise<ContactResponse> {
   return postJson<ContactResponse>(CONTACT_BASE_URL, "/contact", submission);
+}
+
+// --- Content ------------------------------------------------------------
+
+/** Hero copy — the web hero and the mobile Home tab share this. */
+export function getProfile(): Promise<ProfileContent> {
+  return getJson<ProfileContent>(API_BASE_URL, "/content/profile");
+}
+
+/** Web's on-device project-finder section copy. Web-only. */
+export function getBrowserContent(): Promise<BrowserContent> {
+  return getJson<BrowserContent>(API_BASE_URL, "/content/browser");
+}
+
+/** Chat section copy, shared by web and mobile. */
+export function getAskContent(): Promise<AskContent> {
+  return getJson<AskContent>(API_BASE_URL, "/content/ask");
+}
+
+/** Contact section copy, shared by web and mobile. */
+export function getContactContent(): Promise<ContactContent> {
+  return getJson<ContactContent>(API_BASE_URL, "/content/contact");
+}
+
+/** The project cards — web's grid, its on-device finder's corpus (decision 44),
+ * and mobile's Projects tab. */
+export function getProjects(): Promise<ProjectsContent> {
+  return getJson<ProjectsContent>(API_BASE_URL, "/content/projects");
 }

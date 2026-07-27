@@ -8,7 +8,16 @@
  */
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { ApiError, askQuestion, submitContact } from "../src/api";
+import {
+  ApiError,
+  askQuestion,
+  getAskContent,
+  getBrowserContent,
+  getContactContent,
+  getProfile,
+  getProjects,
+  submitContact,
+} from "../src/api";
 
 function jsonResponse(body: unknown, init: ResponseInit = {}): Response {
   return new Response(JSON.stringify(body), {
@@ -75,6 +84,72 @@ describe("submitContact", () => {
     await expect(submitContact({ name: "D", email: "d@e.com", message: "hi" })).resolves.toEqual({
       received: true,
       reference: "2418ab6cf5e0",
+    });
+  });
+});
+
+describe("content endpoints", () => {
+  it("fetches profile with GET, no body", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({ name: "ljuben vassilev", location: "brisbane, australia", tagline: "..." }),
+    );
+
+    const profile = await getProfile();
+
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(url).toContain("/content/profile");
+    expect(init.method).toBe("GET");
+    expect(init.body).toBeUndefined();
+    expect(profile.name).toBe("ljuben vassilev");
+  });
+
+  it("fetches browser content from /content/browser", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ label: "browser", heading: "h", description: "d" }));
+
+    await getBrowserContent();
+
+    expect(fetchMock.mock.calls[0]![0]).toContain("/content/browser");
+  });
+
+  it("fetches ask content, including the suggestion chips", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({ label: "ask", heading: "h", description: "d", suggestions: ["Q1?", "Q2?"] }),
+    );
+
+    const ask = await getAskContent();
+
+    expect(fetchMock.mock.calls[0]![0]).toContain("/content/ask");
+    expect(ask.suggestions).toEqual(["Q1?", "Q2?"]);
+  });
+
+  it("fetches contact content from /content/contact", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ label: "contact", heading: "h", description: "d" }));
+
+    await getContactContent();
+
+    expect(fetchMock.mock.calls[0]![0]).toContain("/content/contact");
+  });
+
+  it("fetches the project cards from /content/projects", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        label: "selected work",
+        heading: "h",
+        items: [{ company: "acme", year: "2020", name: "Widget", note: "note" }],
+      }),
+    );
+
+    const projects = await getProjects();
+
+    expect(fetchMock.mock.calls[0]![0]).toContain("/content/projects");
+    expect(projects.items).toHaveLength(1);
+  });
+
+  it("a failed content fetch becomes the same readable ApiError as any other endpoint", async () => {
+    fetchMock.mockRejectedValue(new TypeError("Failed to fetch"));
+
+    await expect(getProfile()).rejects.toMatchObject({
+      message: expect.stringContaining("Couldn't reach the server"),
     });
   });
 });

@@ -1,0 +1,6 @@
+{
+  "label": "summarizer",
+  "heading": "a real summary, generated on your phone",
+  "description": "A small on-device model condenses this text into a short summary, entirely on your device, no request goes out. Placeholder copy — refined when Phase 7 Step 7.3 designs the mobile summarizer for real.",
+  "source_text": "Placeholder source text for the on-device model to condense. Replaced at Step 7.3 with real, bounded content chosen specifically to avoid the free-generation hallucination risk decision 44 already found for small models."
+}

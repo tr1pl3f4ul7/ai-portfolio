@@ -38,3 +38,20 @@ export async function initSentry(): Promise<boolean> {
   });
   return true;
 }
+
+/**
+ * Manually report an error a caller already caught and handled gracefully.
+ *
+ * Sentry's own global-handler integrations only catch uncaught throws and
+ * unhandled rejections — a try/catch that shows a fallback UI instead of
+ * crashing is, from Sentry's perspective, nothing happening at all. The
+ * content fetch in main.ts is exactly that case: worth knowing about in
+ * production, invisible without this.
+ */
+export async function reportError(error: unknown): Promise<void> {
+  const dsn = import.meta.env.VITE_SENTRY_DSN;
+  if (!dsn) return;
+
+  const Sentry = await import("@sentry/browser");
+  Sentry.captureException(error);
+}

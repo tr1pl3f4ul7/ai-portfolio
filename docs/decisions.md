@@ -2029,6 +2029,51 @@ nothing to protect from being exhausted by an unrelated site embedding a request
 
 ---
 
+## 57. Portfolio copy moved into six per-section JSON files behind a `/content/*` API, shared by web and the future mobile app
+
+**Date:** 2026-07-27
+**Status:** accepted
+
+**Context:** Phase 7 planning surfaced that the mobile app would need the same hero text, project
+list, and section copy already hardcoded into `web/index.html`. Two ways to avoid writing it
+twice: give mobile its own copy of the same strings (drifts the moment either side edits without
+the other), or make the backend the single source of truth both clients fetch from. The same
+question applies to the summarizer screen mobile is getting that web has no equivalent of — it
+needs backend-served copy of its own, mobile-only, with no web client ever calling it.
+
+**Decision:** Six JSON files under `backend/data/content/` — `profile`, `browser`, `ask`,
+`contact`, `projects`, and the mobile-only `summarizer` — each loaded once at import by
+`app/content.py` (mirroring `config.py`'s read-once convention) and served by its own `GET
+/content/<name>` endpoint, backed by a matching Pydantic model in `schemas.py`. One endpoint per
+concern rather than a single combined `/content` payload: `browser` is web-only, `summarizer` is
+mobile-only, and a client fetching one shouldn't have to pull the others along — the same
+separation-of-concerns reasoning already behind this API's other endpoints. `web/index.html`'s
+hero, section copy, and the 17-item project list are now empty elements with stable `id`s,
+populated at runtime by `src/render-content.ts` from `src/api.ts`'s fetches, wired together in
+`src/main.ts` before any widget mounts.
+
+**Rejected:**
+- *A database instead of JSON files.* Considered and pushed back on: this content has exactly one
+  writer (LJ editing a file and redeploying), no queries or joins, and git already gives free
+  version history and diff review on every change — a database would trade that away for
+  concurrency guarantees this content will never need. No admin UI is planned that would want
+  query access either.
+- *A single combined `/content` endpoint.* Simpler to call once, but couples web and mobile to
+  pulling data neither of them displays, and breaks the existing pattern of one schema per concern.
+
+**Consequences:**
+- Editing site copy is now a backend deploy, not a web deploy — a wording change no longer needs a
+  Cloudflare Pages rebuild, but it does need `backend-deploy.yml` to run.
+- Six endpoints to keep in sync across three clients (web now, mobile once Phase 7 builds it, plus
+  the backend's own schemas) is more moving parts than the old hardcoded HTML — worth it only
+  because mobile is about to need the same data web already renders.
+- `web/src/project-finder.ts` reads its corpus by scraping `.work-item` DOM elements lazily on
+  first submit, not at mount time, so it needed no changes to keep working against
+  dynamically-rendered cards — confirmed by both a unit test and manual verification in a real
+  browser.
+
+---
+
 ## Open decisions
 
 Not yet decided. Each will get a full entry when resolved.
