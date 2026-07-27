@@ -246,8 +246,12 @@ store publishing — is Step 7.5, once Phase 7 has actually built something to p
 
 ### Phase 7 — Flutter Mobile App
 
-**Step 7.1 — Scaffold + API client**
-- `🤖 CLAUDE CODE`: Scaffold Flutter app, build API client hitting `/contact` and `/chat`
+**Step 7.1 — Scaffold + API client + core screens**
+- `🤖 CLAUDE CODE`: Scaffold Flutter app; build an API client covering `/chat`, `/contact`, and all
+  six `/content/*` endpoints (decision 57)
+- `🤖 CLAUDE CODE`: Build a home/dashboard screen (hero text, buttons to the four tabs below) plus
+  bottom navigation to summarizer (placeholder pending Step 7.2), projects, chat, and contact
+  screens — the full five-screen scope decided in decision 58
 - `🤖 CLAUDE CODE`: Test: unit tests for the API client (mocked HTTP), widget tests for core screens
 - `✅ VERIFY`: LJ runs the app in a simulator/emulator and confirms it loads and can reach the live backend
 

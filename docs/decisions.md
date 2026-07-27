@@ -2074,6 +2074,40 @@ populated at runtime by `src/render-content.ts` from `src/api.ts`'s fetches, wir
 
 ---
 
+## 58. Mobile app scope: a full five-screen dashboard, not a lean summarizer-only app
+
+**Date:** 2026-07-27
+**Status:** accepted
+
+**Context:** Phase 7 planning raised whether chat and contact belong in the mobile app at all —
+both already exist on web, and only the on-device summarizer is unique to mobile. Claude Code's
+initial recommendation was to descope the app to summarizer + projects only, on the reasoning that
+duplicating chat/contact adds surface area without adding a capability the web app doesn't already
+have.
+
+**Decision:** LJ overrode that recommendation: build the full app — a home/dashboard screen
+carrying the hero text and buttons to four tabs (summarizer, projects, chat, contact) behind
+bottom navigation. Explicit reasoning given: this is a portfolio, and a mobile engineer's
+portfolio app should demonstrate complete, polished mobile work, not the minimum needed to avoid
+duplication. A visibly full-featured app is itself part of what's being demonstrated.
+
+**Rejected:** *Summarizer + projects only.* Would have been the more minimal, arguably more
+elegant scope on pure capability-non-duplication grounds, but undersells mobile engineering
+experience relative to the web app sitting right next to it.
+
+**Consequences:**
+- Step 7.1 now scaffolds all five screens (home, summarizer, projects, chat, contact) rather than
+  "an API client hitting `/contact` and `/chat`" as originally scoped — updated in
+  `docs/PROJECT_PLAN.md` to match.
+- The mobile API client covers every `/content/*` endpoint (decision 57), not just `/chat` and
+  `/contact`, since the dashboard, projects, and chat-suggestion-chip screens all need fetched copy
+  the same way web does.
+- Chat and contact on mobile call the same live backend and edge Worker as web, so they carry the
+  same real per-request costs (Claude API call, Resend email) — no separate rate-limit or spend
+  consideration was needed since both already sit behind the daily caps decision 31 put in place.
+
+---
+
 ## 59. Project cards were invisible on the live site — a scroll-reveal race against decision 57's async content fetch
 
 **Date:** 2026-07-27
