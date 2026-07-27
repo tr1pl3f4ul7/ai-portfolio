@@ -2074,6 +2074,61 @@ populated at runtime by `src/render-content.ts` from `src/api.ts`'s fetches, wir
 
 ---
 
+## 59. Project cards were invisible on the live site — a scroll-reveal race against decision 57's async content fetch
+
+**Date:** 2026-07-27
+**Status:** accepted
+
+**Context:** LJ reported the project cards section missing on the live site after the decision 57
+deploy, confirmed by refreshing repeatedly with no change. Investigation ruled out the backend
+(`curl` against `/content/projects` returned a real 200 with the correct payload, from a
+cache-busted request, with `cf-cache-status: DYNAMIC`) and ruled out a thrown JS error (Sentry
+showed zero real errors in the prior 7 days — the SDK itself was confirmed working via the
+deliberate `?debug-error` test events from Step 6 — and the browser console showed only unrelated
+`ERR_BLOCKED_BY_CLIENT` entries from an ad blocker killing PostHog/Sentry/Cloudflare-Insights
+requests, not the app's own code). A direct DOM check on the live page
+(`document.getElementById('work-list')`) showed all 17 cards present with `display: grid` and a
+real, non-zero height — the content was there, just invisible.
+
+The actual cause: `motion.ts`'s `mountMotion()` runs synchronously at page load, before
+`main.ts`'s content fetch resolves — deliberately, so scroll-reveal animations for the page's
+static parts don't wait on a network round trip (web/CLAUDE.md: "first paint shouldn't wait on AI
+anything"). At that point `#work-list` is still the empty `<ol>` `index.html` ships with (decision
+57 removed the hardcoded 17-item list), so `mountMotion()`'s `querySelectorAll(".work-item")` finds
+nothing to register with its `IntersectionObserver`. When `renderContent()` later inserts the real
+cards, they immediately match `motion.css`'s `.js-motion .work-item { opacity: 0; }` — a plain,
+live CSS selector that applies to any matching element regardless of when it was created — but
+were never `observer.observe()`'d, so `.is-revealed` never arrives and they stay at `opacity: 0`
+forever. Before decision 57, this selector only ever matched elements that already existed at
+`mountMotion()` time, so the race was latent and harmless until content became async.
+
+**Decision:** After `renderContent(content)` populates `#work-list`, call `mountMotion(workList)`
+again, scoped to just that subtree. `mountMotion()` was already designed to be idempotent
+(`splitWords`'s "already-split element is left alone" guard, `prepare()`'s attribute/style writes
+being safe to repeat) — the fix is a second, scoped call rather than new machinery. A regression
+test in `motion.test.ts` reproduces the exact sequence (empty list → `mountMotion()` → append an
+item → scoped `mountMotion()` → confirm it's observed and revealable) so this can't regress
+silently again.
+
+**Rejected:**
+- *Delay `mountMotion()` until after the content fetch resolves.* Would fix the race but reintroduce
+  the problem the current ordering deliberately avoids — every above-the-fold reveal (hero, trace
+  rows, headings) would wait on a network round trip it has no need to wait on.
+- *Drop `.work-item` from `REVEAL_SELECTOR` entirely.* Removes the race by removing the animation,
+  but throws away real design intent (the alternating slide-in on the work grid) to fix a wiring
+  bug, not a design problem.
+
+**Consequences:**
+- Any future dynamically-inserted content that should participate in scroll-reveal needs the same
+  pattern: render it, then call `mountMotion(scopedRoot)` against the container it landed in. This
+  is now the second call site (after `renderContent()`'s project cards) and worth remembering if a
+  Step 7-style feature adds another async section to the web page.
+- `mountMotion()` calling `prepare()` twice on already-settled elements (on a whole-document
+  re-scan, not the scoped call used here) is harmless but wasteful — scoping to the specific
+  subtree that changed, as done here, avoids that entirely.
+
+---
+
 ## Open decisions
 
 Not yet decided. Each will get a full entry when resolved.

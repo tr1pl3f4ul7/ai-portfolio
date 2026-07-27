@@ -107,6 +107,16 @@ void (async () => {
 
   renderContent(content);
 
+  // The project cards don't exist yet when mountMotion() runs above — they're
+  // created here, after the fetch resolves. Without this, they'd match
+  // motion.css's `.js-motion .work-item { opacity: 0 }` but never get
+  // observed, so they'd never receive `.is-revealed` and would stay invisible
+  // forever. mountMotion() is idempotent, so scoping a second call to this
+  // subtree wires just the new cards in without touching anything already
+  // settled elsewhere on the page.
+  const workList = document.querySelector<HTMLElement>("#work-list");
+  if (workList) mountMotion(workList);
+
   const finder = document.querySelector<HTMLElement>("#finder");
   if (finder) mountProjectFinder(finder, { onMatched: recordOnDevice });
 

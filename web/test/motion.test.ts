@@ -227,6 +227,42 @@ describe("revealing on scroll", () => {
   });
 });
 
+describe("content added after the initial mount (decision 57's async project cards)", () => {
+  it("wires newly-added reveal targets into the observer via a scoped re-mount", () => {
+    // Mirrors the real bug: mountMotion() runs before the project cards exist
+    // (they arrive later from a content fetch), so the first pass finds none.
+    const list = document.querySelector<HTMLElement>(".work")!;
+    list.innerHTML = "";
+    mountMotion();
+    expect(observed).not.toContain(list.firstChild);
+
+    const item = document.createElement("li");
+    item.className = "work-item";
+    list.append(item);
+
+    // Without this second, scoped call the card would match motion.css's
+    // `.js-motion .work-item { opacity: 0 }` but never receive `.is-revealed`
+    // — permanently invisible despite being fully present in the DOM.
+    mountMotion(list);
+
+    expect(item.hasAttribute("data-reveal-target")).toBe(true);
+    expect(observed).toContain(item);
+
+    trigger([{ target: item, isIntersecting: true }]);
+    expect(item.classList.contains("is-revealed")).toBe(true);
+  });
+
+  it("does not disturb already-revealed content elsewhere on a second call", () => {
+    mountMotion();
+    const display = document.querySelector(".display")!;
+    expect(display.classList.contains("is-revealed")).toBe(true);
+
+    mountMotion();
+
+    expect(display.classList.contains("is-revealed")).toBe(true);
+  });
+});
+
 describe("the hero runs as a load sequence", () => {
   it("reveals hero content immediately rather than waiting for scroll", () => {
     // Nothing above the fold would ever intersect, so it would sit hidden.
