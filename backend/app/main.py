@@ -93,6 +93,7 @@ class HealthResponse(BaseModel):
 
 
 @app.get("/health", response_model=HealthResponse)
+@app.head("/health", response_model=HealthResponse)
 def health() -> HealthResponse:
     """Report that the process is up.
 
@@ -101,6 +102,11 @@ def health() -> HealthResponse:
     endpoint, so it must stay fast and must not fail because something
     downstream is unhealthy. Checks for those dependencies belong in a separate
     readiness endpoint if they are ever needed.
+
+    HEAD is registered explicitly, not inherited from GET: UptimeRobot's free
+    HTTP(s) monitor sends HEAD by default, and FastAPI does not add it to a
+    route's allowed methods automatically — confirmed live, the monitor was
+    getting a real 405 while every manual GET check returned 200.
     """
     return HealthResponse(status="ok")
 
