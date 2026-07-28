@@ -1,9 +1,9 @@
 """Tests for the /content/* endpoints.
 
-Portfolio copy — the single source both web and mobile read from (see
-app/content.py). These endpoints are static reads with no side effects, so
-there's no rate limiting and no mocking needed: just confirm each one
-returns the real, loaded content in its expected shape.
+Portfolio copy — the single source web reads from (see app/content.py).
+These endpoints are static reads with no side effects, so there's no rate
+limiting and no mocking needed: just confirm each one returns the real,
+loaded content in its expected shape.
 """
 
 from __future__ import annotations
@@ -33,16 +33,6 @@ def test_browser_has_the_section_shape():
     assert response.status_code == 200
     body = response.json()
     assert set(body) == {"label", "heading", "description"}
-
-
-def test_summarizer_carries_source_text_too():
-    """The one field that distinguishes it from the plain section shape."""
-    response = client.get("/content/summarizer")
-
-    assert response.status_code == 200
-    body = response.json()
-    assert set(body) == {"label", "heading", "description", "source_text"}
-    assert body["source_text"]
 
 
 def test_ask_carries_suggestions():

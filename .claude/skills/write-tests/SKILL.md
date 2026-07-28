@@ -1,6 +1,6 @@
 ---
 name: write-tests
-description: Write tests for this repo following the per-layer testing standard - pytest for backend, vitest for the Cloudflare Worker, flutter test for mobile, shellcheck plus idempotency for infra. Use when adding tests, when a step needs its test coverage, or when asked to test something.
+description: Write tests for this repo following the per-layer testing standard - pytest for backend, vitest for the Cloudflare Worker, shellcheck plus idempotency for infra. Use when adding tests, when a step needs its test coverage, or when asked to test something.
 ---
 
 # Write Tests
@@ -75,19 +75,6 @@ from that decision.
   the closer one wins. Actual matching is verified manually in a real browser; document the load
   time when you do.
 - Assert the model download never starts without an explicit click.
-
-### `mobile/` — flutter test
-
-```bash
-cd mobile && flutter test
-```
-
-- Widget tests for the summariser's three states: loading, result, error.
-- Unit tests for the API client against mocked HTTP, asserting it matches
-  `backend/app/schemas.py`.
-- Test the **on-device-AI-unavailable** path. Plenty of real devices lack Gemini Nano or Apple
-  Foundation Models, and the app must degrade honestly rather than silently hitting the network.
-- Mock Sentry and PostHog so tests emit no real events.
 
 ### `infra/` — shellcheck + idempotency
 

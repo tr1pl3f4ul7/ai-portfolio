@@ -88,7 +88,7 @@ explanation of why it can't be automated.
 
 ### 6. Secrets Never Enter the Repo
 
-This project has four deploy targets and a dozen credentials. The blast radius of one leaked key
+This project has three deploy targets and a dozen credentials. The blast radius of one leaked key
 is the whole stack.
 
 - Never hardcode a secret, never paste one into a commit, never echo one into terminal output.
@@ -106,7 +106,7 @@ The canonical list of required secrets is Section 5 of `docs/PROJECT_PLAN.md`.
 Every commit message uses `<type>[(scope)]: <description>`.
 
 - Types: `feat`, `fix`, `chore`, `docs`, `test`, `refactor`, `ci`, `perf`, `build`.
-- Scopes match top-level directories: `backend`, `web`, `edge`, `mobile`, `infra`, `docs`, `ci`.
+- Scopes match top-level directories: `backend`, `web`, `edge`, `infra`, `docs`, `ci`.
 - Imperative mood, lowercase description, no trailing period.
 - Body explains *why*, not *what* — the diff already says what.
 
@@ -145,8 +145,6 @@ architectural reasoning is the actual content:
 | **Server** | Oracle Ampere A1 VM (2 OCPU / 12 GB) | FastAPI RAG chatbot over a local vector store |
 | **Cloud API** | Anthropic Claude API | Contact triage + RAG answer generation |
 
-Plus a Flutter app reusing the same backend with platform-native on-device summarisation.
-
 **Design consequence:** the VM has 12 GB total for nginx + FastAPI + the embedding model + the
 vector store. Keep the server side lightweight. If a change meaningfully increases memory
 footprint, flag it.
@@ -158,17 +156,15 @@ footprint, flag it.
 | Path | What lives there | Owning phase |
 |---|---|---|
 | `web/` | One-pager: animations, chat widget, on-device project finder | 3 |
-| `mobile/` | Flutter app | 6 |
 | `backend/` | FastAPI: RAG chatbot + contact triage | 2 |
 | `edge/` | Cloudflare Worker pre-filter | 4 |
 | `infra/` | `setup.sh`, nginx config, systemd units | 1 |
-| `design/` | `tokens.json` — the visual contract shared by `web/` and `mobile/` | 3 |
+| `design/` | `tokens.json` — the visual contract for `web/` | 3 |
 | `docs/` | architecture, decision log, runbook, design system | 8 |
-| `.github/workflows/` | Path-filtered CI/CD to four targets | 7 |
+| `.github/workflows/` | Path-filtered CI/CD to three targets | 7 |
 
-**`design/tokens.json` is generated into both clients.** Never hand-edit
-`web/src/styles/tokens.css` or `mobile/lib/theme/tokens.dart` — edit the JSON and run
-`python design/generate.py`. See `docs/design-system.md`.
+**`design/tokens.json` is generated into `web/`.** Never hand-edit `web/src/styles/tokens.css` —
+edit the JSON and run `python design/generate.py`. See `docs/design-system.md`.
 
 Empty directories currently hold `.gitkeep`. Real contents arrive in the owning phase — **don't
 pre-create files for a phase you haven't reached.**
@@ -188,17 +184,14 @@ The local development environment has a few platform quirks that bite in specifi
   `manylinux_2_28_x86_64` (CI), so one pin covers every target.
 - **`sqlite-vec` has no wheel matching the local environment.** Backend retrieval tests run in a
   Linux container: `cd backend/test && ./run-tests.sh`. A native `pytest` skips them.
-- **Flutter's Windows release only ships one SDK build** — installed and used as-is; expect
-  builds to run a bit slower than optimal.
 - **`workerd` (what `wrangler` and the edge Worker's test pool both run on) has no build matching
   the local environment** — `npm install` in `edge/` fails outright, not just at test time. Edge
   tests run in a Linux container the same way: `cd edge/test && ./run-tests.sh`.
 - Shell is PowerShell 7+; a Bash tool is also available. They take different syntax.
 
 Installed toolchain: Python 3.12.10 (**use this**; 3.11.9 also present but `backend/` targets
-3.12 to match the VM and CI), Node 24.18.0, npm 11.16.0, gh 2.96.0, Flutter 3.44.7,
-Android Studio + SDK 36.1.0 + JDK 21, shellcheck 0.11.0, Docker Desktop 4.83.0 with MCP
-Toolkit 0.43.1.
+3.12 to match the VM and CI), Node 24.18.0, npm 11.16.0, gh 2.96.0, shellcheck 0.11.0,
+Docker Desktop 4.83.0 with MCP Toolkit 0.43.1.
 
 ---
 
@@ -212,7 +205,6 @@ presenting the step for verification, and report the results alongside.
 | `backend/` | `pytest` for logic (classification parsing, retrieval ranking) | `TestClient`/`httpx` for endpoints | **Claude API calls are mocked in CI** — never live-call in automated tests |
 | `edge/` | `vitest` + `@cloudflare/vitest-pool-workers` | local `wrangler dev` smoke test | Run before every deploy |
 | `web/` | component/interaction tests | manual cross-browser check | Project finder widget needs a real browser |
-| `mobile/` | widget tests, API client unit tests | `flutter test` in CI | |
 | `infra/` | `shellcheck` + idempotency (run twice, no errors, no dupes) | `/health` smoke test after every deploy | |
 
 ---
@@ -279,7 +271,6 @@ docker mcp oauth authorize github
 | GitHub | connected | `github-official`, OAuth — prefer over the `gh` CLI |
 | Sentry | not yet | Connect at Step 2.5 |
 | Cloudflare | not yet | Several servers; connect at Phase 4 |
-| Flutter/Dart | not yet | Connect at Phase 7 |
 | **Docker** | **no server exists** | The catalog has no daemon-control server — `docker-docs` and `dockerhub` only. `docker mcp` is a *gateway* for running other servers, not a way to drive Docker. `infra/test/` uses the CLI, and needs `--privileged`, `--cgroupns=host` and `docker cp`, which no community server exposes |
 | **Oracle Cloud** | **none official** | Not in the catalog. Community OCI servers exist but would hold control-plane credentials for the tenancy — not worth the blast radius (Principle 6) |
 

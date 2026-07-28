@@ -1,16 +1,13 @@
 # Design System
 
-One visual contract, two consumers: the web one-pager and the Flutter app. The same shape as the
-API contract with its three clients — and the same failure mode if it drifts, except design drift
-is **silent**. Nothing errors; the two clients just quietly stop looking like one product.
-
-So both platform files are **generated**, and neither is ever hand-edited.
+One visual contract, one consumer: the web one-pager. `tokens.json` is still generated rather than
+hand-written, so a value only ever needs to be decided once and CSS custom properties stay in sync
+with it automatically.
 
 ```
 design/tokens.json        <- edit this, and only this
         |
         +--> web/src/styles/tokens.css      CSS custom properties
-        +--> mobile/lib/theme/tokens.dart   Flutter (emitted from Phase 7)
 ```
 
 ```bash
@@ -146,8 +143,8 @@ decision entry, not a quiet addition of light tokens.
 
 ## Rules
 
-- **Never hardcode a hex value, size, or duration** in `web/` or `mobile/`. If a value is missing,
-  add it to `tokens.json` — that is the whole point of the file.
+- **Never hardcode a hex value, size, or duration** in `web/`. If a value is missing, add it to
+  `tokens.json` — that is the whole point of the file.
 - `--radius-sharp` is 3px everywhere. Instrument panel, not a rounded card.
 - Semantic colour is separate from the accent and does not count as one.
 - Interactive things must look interactive, and keyboard focus must be visible — use

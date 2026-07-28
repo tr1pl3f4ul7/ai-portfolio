@@ -28,8 +28,8 @@ constraint is the model download below — every kilobyte of framework JS compet
 
 ## ⚠️ Never hand-edit `src/styles/tokens.css`
 
-It is **generated** from `design/tokens.json`, which is shared with the Flutter app so both clients
-stay one visual system. Edit the JSON, then:
+It is **generated** from `design/tokens.json`, the single source of truth for the visual system.
+Edit the JSON, then:
 
 ```bash
 python design/generate.py

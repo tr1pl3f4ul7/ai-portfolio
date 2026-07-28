@@ -1,9 +1,7 @@
 # .github/ — CI/CD
 
-Path-filtered workflows deploying one monorepo to **four independent targets**. Built in Phase 6
+Path-filtered workflows deploying one monorepo to **three independent targets**. Built in Phase 6
 for backend/edge/web, since that's what exists by then; don't create these files earlier.
-`mobile-build.yml` arrives later, with Phase 7's Step 7.5, once the Flutter app is actually there
-to build (decision 50).
 
 ## Workflows
 
@@ -15,7 +13,6 @@ to build (decision 50).
 | `backend-deploy.yml` | `backend/**`, `infra/deploy.sh`, `infra/nginx/**`, `infra/systemd/**` | `infra/deploy.sh` on the runner — full rsync + venv/vector-store rebuild + nginx/systemd install + restart, secrets from GitHub Actions written to the VM's env file (decision 52) |
 | `edge-deploy.yml` | `edge/**` | `wrangler deploy`, spam-only smoke test against `contact.ljubenvassilev.com` (decision 55) |
 | `web-deploy.yml` | `web/**` | Cloudflare Pages project `ai-portfolio-web`, bound to `ljubenvassilev.com` + `www` (decision 48/54) |
-| `mobile-build.yml` | `mobile/**` + tags | APK/IPA artefact + store publishing (Step 7.5, decision 42) |
 
 ## Rules
 

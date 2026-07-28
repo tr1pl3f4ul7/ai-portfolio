@@ -104,8 +104,7 @@ Flag anything that is:
   YAML, a test fixture, a .env that is not gitignored.
 - A secret echoed into logs, error messages, telemetry, or CI step output.
 - A gitignore gap that would let one be committed.
-- ANTHROPIC_API_KEY referenced anywhere in web/ or mobile/ — client-side code
-  must never hold it.
+- ANTHROPIC_API_KEY referenced anywhere in web/ — client-side code must never hold it.
 
 Note the legitimate exceptions so you do not raise false alarms: the PostHog
 project key and the Sentry DSN are publishable by design and are expected to
@@ -123,7 +122,6 @@ layer, and flag gaps:
 - backend: pytest for logic, TestClient/httpx for endpoints, Claude API MOCKED.
 - edge: vitest unit tests over pure classification logic, plus a wrangler dev smoke test.
 - web: component/interaction tests; WebLLM verified manually in a real browser.
-- mobile: widget tests for UI states, unit tests for the API client.
 - infra: shellcheck clean, and idempotent (running twice must be a no-op).
 
 Also flag:
@@ -145,8 +143,6 @@ High-value checks:
   wrangler.toml; decision logged but never the message body (personal data).
 - web: backend URL is configuration not a literal; scroll animations honour
   prefers-reduced-motion; model download requires an explicit click.
-- mobile: API client mirrors backend/app/schemas.py; on-device availability checked
-  rather than assumed.
 - infra: LF line endings; set -euo pipefail; idempotent; app runs as non-root.
 - Commit messages follow Conventional Commits.
 
@@ -232,7 +228,7 @@ const baseline = await agent(
    'git diff --cached' for staged work). Scope under review: ${scope}.
 2. ${testCommand
     ? `Run the test suite with: ${testCommand}\n   Report the REAL output. Do not summarise a run you did not perform.`
-    : 'No test command was supplied. Infer the correct one from the touched directory\'s CLAUDE.md (pytest / vitest / flutter test / shellcheck) and run it. If no tests exist yet for this step, set tests_ran=false.'}
+    : 'No test command was supplied. Infer the correct one from the touched directory\'s CLAUDE.md (pytest / vitest / shellcheck) and run it. If no tests exist yet for this step, set tests_ran=false.'}
 3. Summarise the change in two sentences.
 
 Report honestly. A failing suite here is expected input to the loop, not a problem to hide.`,

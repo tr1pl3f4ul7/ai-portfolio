@@ -1240,7 +1240,7 @@ was true, and misleading, in testing).
 **Rejected:**
 
 - *Keep WebLLM, improve the failure message only.* Matches the plan exactly and is a smaller
-  change, but does nothing for a visitor on this class of hardware. Asking a recruiter to flip an
+  change, but does nothing for a visitor on this class of hardware. Asking a visitor to flip an
   experimental browser flag is not a real fallback.
 - *Run both engines, WebLLM where WebGPU exists and transformers.js elsewhere.* Two inference
   paths to maintain for one small widget, against Principle 2 (Simplicity First) — transformers.js
@@ -2209,6 +2209,205 @@ override or not.
   discovery path was PostHog events never appearing in the dashboard during Step 7.3's manual
   verification — worth remembering that a live-service check can surface a build regression
   `flutter analyze` should have caught, if the analyze run itself never happened in between.
+
+---
+
+## 61. Firebase Test Lab's Galaxy S25 "unavailable" result is inconclusive — AICore needs a signed-in account Test Lab doesn't provide
+
+**Date:** 2026-07-28
+**Status:** accepted for the testing-strategy conclusion; the underlying question (does the
+summarizer's download path work on real Galaxy S25 hardware) is still unverified
+
+**Context:** Step 7.4's real-device plan needed one physical device per `flutter_local_ai` state:
+permanently unsupported (Pixel 7, `panther`), supported-but-needs-a-download (Galaxy S25, `pa1q`
+— per the official ML Kit GenAI device list), and preinstalled-ready (Pixel 9, `tokay`). Ran
+`integration_test/summarizer_test.dart` via `gcloud firebase test android run`, wiring in the real
+`FlutterLocalAiSummarizer` rather than the widget tests' fake. A first 3-device matrix reported all
+three as "Passed", but the `TEST_DETAILS` column was blank and logcat showed `TestRunner: run
+started: 1 tests` immediately followed by `run finished: 0 tests, 0 failed, 0 ignored` — the
+androidTest APK was missing the Android-side JUnit shim `integration_test` needs
+(`MainActivityTest.java`, `@RunWith(FlutterTestRunner.class)`), so it silently executed nothing
+while still reporting green. After adding that file and re-running (this time against a single
+device — the Spark plan's 5-runs/day quota was already spent), the Galaxy S25 run genuinely
+executed ("1 test cases passed" in `TEST_DETAILS`, confirmed in logcat) but landed on
+`_Status.unavailable`, not the expected `downloadable` state.
+
+**Decision:** Pulled the device's raw logcat from the Test Lab GCS results bucket rather than
+trusting the outcome table alone. It shows Play Services' Phenotype config system —
+`PhenotypeResourceReader: unable to find any Phenotype resource metadata for
+com.google.android.aicore` — and repeated `SettingsProvider: did not write settings for prefix
+'aicore/' because sync is disabled`, ending in `PlatformConfigurator: Retried propagating for
+com.google.android.platform.aicore 5 times without succeeding. Giving up.` Test Lab devices aren't
+signed into a Google account by default, and AICore's rollout to non-Pixel OEMs (unlike Pixel's own
+baked-in path) appears to depend on that account-gated Phenotype sync to activate at all. Reading
+this result as "the Galaxy S25 doesn't support Gemini Nano" would be wrong — the far more likely
+explanation is that Test Lab's environment can't complete AICore's activation, independent of the
+device's real eligibility.
+
+**Rejected:**
+- *Trusting the Test Lab pass/fail table at face value.* Would have logged this as a confirmed
+  real-world negative for the Galaxy S25 and sent Step 7.4 toward walking back a support claim
+  based on a test-harness artifact, not the actual feature.
+- *Re-running immediately for a second data point.* Not possible the same day — quota was already
+  exhausted between an earlier single-device plumbing check and the first (also invalid, zero-test)
+  3-device matrix.
+
+**Consequences:**
+- The Galaxy S25 download-flow claim is **not yet verified** by Test Lab, and likely can't be, for
+  the same account-gating reason — this still needs a hands-on check on a real, signed-in device,
+  which mobile/CLAUDE.md already anticipated ("Actual inference quality is verified by hand on a
+  real device").
+- `panther` (Pixel 7, permanently unsupported) probably isn't affected by this — hardware
+  ineligibility shouldn't depend on account sync — but wasn't independently re-verified after the
+  JUnit-shim fix, due to quota exhaustion.
+- `tokay` (Pixel 9) is the most useful device to re-run once quota resets: Google controls Pixel's
+  Gemini Nano pipeline directly rather than through this same third-party Phenotype propagation, so
+  a "ready" result there would corroborate this explanation, and "unavailable" would rule it out.
+
+---
+
+## 62. Firebase Test Lab confirms `panther` (Pixel 7) is genuinely unsupported; `tokay` (Pixel 9) is unavailable for a third, distinct reason — extending decision 61
+
+**Date:** 2026-07-28
+**Status:** accepted
+
+**Context:** Follow-up to decision 61. Before re-running, extended `summarizer_test.dart` to log
+`getPlatformInfo()` and the raw `availabilityReason()` string for every device, not just a generic
+pass/fail — a plain "unavailable" can't distinguish genuine hardware ineligibility from a
+test-environment artifact, and decision 61 only had that distinction for the Galaxy S25. Re-ran
+`panther` and `tokay` once the Spark quota reset.
+
+**Decision:** Trust the two results differently, based on the actual reason text and logcat detail
+behind each, not just the outcome:
+- `panther`: `availabilityReason=unavailable: not supported on this device`, and its logcat has
+  **zero** attempts to bind `com.google.android.aicore`'s service anywhere in ~1,850 lines — the ML
+  Kit GenAI client short-circuits before ever trying to reach AICore. This is a clean, local,
+  hardware-based rejection with no account or network dependency. **Treated as confirmed real:**
+  Pixel 7 is genuinely, permanently unsupported.
+- `tokay`: `availabilityReason=unavailable: unknown` — vague, and logcat shows the client
+  repeatedly *trying* to bind `AiCoreService` and `AiCoreMultiUserService`, each failing with
+  `601-BINDING_FAILURE: AiCore service failed to bind to primary or fallback` because Android
+  reports the component `not found`. Pixel 9 is unambiguously eligible per Google's own device
+  list, so this isn't an eligibility result — it means the AICore system app/service isn't present
+  or reachable on this specific Test Lab device image. **Treated as still inconclusive,** for a
+  different specific mechanism than the Galaxy S25's Phenotype-config-sync failure (decision 61),
+  but the same broad category: a gap in Test Lab's environment, not the device's real behaviour.
+
+**Rejected:**
+- *Reading `tokay`'s "unavailable" as confirming Pixel 9 needs manual verification too, without
+  checking why.* Would have been the same mistake decision 61 called out — trusting an outcome
+  without the reason behind it — just on a device we had good prior reason to expect "ready" on.
+- *Assuming Pixel's baked-in path is immune to Test Lab's limitation, per decision 61's original
+  hypothesis.* Directly falsified by this run: `tokay` fails too, just via a missing service
+  binding rather than blocked config sync. Google controlling the OS image doesn't help if Test
+  Lab's specific device snapshot never got AICore installed/updated in the first place.
+
+**Consequences:**
+- Test Lab can now be trusted for exactly one of the three states this project needs: permanently
+  unsupported (`panther`, confirmed). The other two — needs-a-download (Galaxy S25) and
+  preinstalled-ready (Pixel 9) — are not verifiable there, for two different underlying reasons that
+  both trace back to the same root cause (no properly-provisioned, signed-in AICore stack on Test
+  Lab's device images).
+- Both remaining states still need the hands-on check on a real, signed-in device that decision 61
+  already pointed to. There's no further Test Lab avenue left to try for them — this isn't a matter
+  of picking a different device or adding more logging, the mechanism itself isn't present.
+
+---
+
+## 63. Ruled out "stale device image" as the cause of Test Lab's AICore gap — tried Pixel 10, same failure, closing this line of investigation
+
+**Date:** 2026-07-28
+**Status:** accepted
+
+**Context:** Decision 62 left one alternative explanation for `tokay`'s (Pixel 9) `AiCoreService`
+binding failure un-eliminated: that it was specific to Firebase's particular Pixel 9 device
+snapshot — e.g. an older system image that predates AICore being properly baked in — rather than a
+general property of Test Lab's environment. If true, a newer device on a newer build might not
+have the gap. Re-ran the same, already-built APK/test (no code change needed) against `frankel`
+(Pixel 10, the newest Google device Test Lab offers, same API level 36 as `tokay`'s run).
+
+**Decision:** Treat the stale-image hypothesis as ruled out. `frankel` hit the identical
+`601-BINDING_FAILURE: AiCore service failed to bind to primary or fallback` on both
+`AiCoreService` and `AiCoreMultiUserService` — same as `tokay`. More conclusively, this run's
+logcat surfaces the actual mechanism directly: `Auth: [ChimeraGetToken] Account not found in
+AccountManager. Returning ACCOUNT_NOT_PRESENT error`, alongside the same "account not found"
+failures recurring across unrelated Google services (Backup, Multidevice) throughout the log —
+not an AICore-specific glitch, but the device having no Google account at all. Newest hardware,
+newest available OS build, identical failure: the gap isn't about device generation or build
+freshness, it's structural to how Test Lab provisions devices.
+
+**Rejected:**
+- *Trying yet another device or OS version combination.* Nothing left to vary — hardware
+  generation was the last plausible independent variable after decision 62 addressed OEM vs. Pixel
+  and download-required vs. preinstalled. This run closes that line rather than opening a new one.
+
+**Consequences:**
+- This closes out Test Lab as an avenue for the two account-gated states entirely — not "worth
+  one more try with a different device," genuinely exhausted. Decision 62's conclusion stands
+  without qualification: only the permanently-unsupported state is verifiable there.
+- Any future device farm considered for this must be evaluated specifically on whether it signs a
+  real account into the device — the AWS Device Farm research already found the same account-less
+  provisioning model, plus an explicit vendor recommendation against entering account credentials
+  during sessions, so this likely isn't solvable by switching farms either.
+
+---
+
+## 64. Phase 7 (Flutter mobile app) abandoned entirely — removed from the repo
+
+**Date:** 2026-07-28
+**Status:** accepted — **Phase 7 no longer exists**; supersedes decisions 9, 12, 42, 50, 58 and
+extends 60-63, all of which remain in this log as the historical record of what was built and why
+
+**Context:** Steps 7.1-7.3 built a working Flutter app (five screens, on-device summarizer via
+`flutter_local_ai`, Sentry/PostHog, CI build checks). Step 7.4's real-device verification — the
+subject of decisions 61-63 — turned into a long chain of friction: Firebase Test Lab devices ship
+signed out, so AICore can never activate there at all; the one real device available (a Galaxy
+S25 Ultra) needed AICore manually installed via Play Store, then hit a separate, undocumented
+server-side rollout gate (`606-FEATURE_NOT_FOUND`, a known open issue in Google's own
+`googlesamples/mlkit` repo) requiring enrollment in Google's AICore Developer Preview program just
+to test the download flow by hand. Weighed against that: no paid Apple Developer or Google Play
+accounts yet existed, no device-farm or AWS account had been created, and iOS builds still needed
+a virtual Mac setup not yet started — real cost, still mostly ahead, not behind. Against all of
+that, the actual payoff is a visitor needing to install an app, own a supported device, and press
+one button to see a summarized version of text already visible on the web page directly above it.
+
+**Decision:** Delete `mobile/` entirely, along with everything built specifically for it: the two
+CI workflows (`android-build-check.yml`, `ios-build-check.yml`), the mobile-only
+`/content/summarizer` endpoint and `SummarizerContent` schema (confirmed via direct search that no
+web code ever referenced it), `design/generate.py`'s Dart token output, and every mobile/Flutter
+mention across root and backend `CLAUDE.md`, `docs/design-system.md`, `.gitignore`,
+`.editorconfig`, and the `.claude/skills`/`.claude/workflows` tooling that treated it as a third
+consumer alongside backend and web. Historical decisions (9, 12, 42, 50, 58, 60-63) stay in this
+log untouched, even though they now reference files that no longer exist — that's expected for a
+decision log recording a past state, not a defect to fix.
+
+**Rejected:**
+- *De-scoping just the unverifiable Android states while keeping the rest of the app* (the
+  alternative proposed immediately before this decision). Would have kept the app "done, mostly
+  verified, one caveat noted" — but the friction that prompted reconsidering wasn't really about
+  that one verification gap, it was the realisation that the whole feature's cost (four deploy
+  targets instead of three, ongoing store accounts, ongoing CI, a whole second client to keep the
+  API contract in sync with) was never going to be worth it for what a visitor actually gets out
+  of it. Keeping the app alive to fix a narrow test gap would have missed the actual point.
+- *Leaving `mobile/` in the working tree, unpublished, "in case it's revisited later."* Git history
+  preserves everything either way; a half-finished app sitting in the repo is dead weight to read
+  past and reason about, not a saved asset. If this is revisited, it starts fresh "when the
+  technology is a bit more mature," per LJ's own framing — not by resuming this exact
+  implementation.
+- *Renumbering Phase 8 to Phase 7 so the plan has no gap.* Phase numbers are referenced throughout
+  `docs/decisions.md`, `CLAUDE.md` files, and `.claude/` tooling — renumbering would ripple far
+  wider than the actual change calls for. `docs/PROJECT_PLAN.md` now has a short "Phase 7 —
+  removed" note pointing here instead.
+
+**Consequences:**
+- Three deploy targets remain (Oracle VM, Cloudflare Workers, web static site), not four. The
+  project's core thesis — inference running in genuinely different places — still holds: Browser,
+  Edge, Server, and Cloud API are untouched by this.
+- The Firebase Test Lab project (`ai-portfolio-mobile-testing`) created for decisions 61-63 still
+  exists as an external GCP/Firebase resource and is **not** deleted by this decision — that's a
+  separate action for LJ to decide on, since it touches an account outside this repo.
+- Anyone reading decisions 9, 12, 42, 50, 58, or 60-63 going forward should understand them as
+  history, not current state — this entry is the pointer that explains why those files are gone.
 
 ---
 

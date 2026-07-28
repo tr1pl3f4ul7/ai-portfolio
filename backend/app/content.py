@@ -1,11 +1,10 @@
-"""Portfolio content — the single source both web and mobile read from.
+"""Portfolio content — the single source web reads from.
 
 Lives as committed JSON in data/content/, the same pattern data/*.md already
 uses for the RAG corpus: edit the file, commit, push. A backend deploy
-carries the change to both clients — no web rebuild, no app-store
-resubmission for mobile. Loaded once at import, matching config.py's own
-"read once" convention; content only changes via a redeploy anyway, which
-restarts this process regardless.
+carries the change to the client — no web rebuild. Loaded once at import,
+matching config.py's own "read once" convention; content only changes via a
+redeploy anyway, which restarts this process regardless.
 """
 
 from __future__ import annotations
@@ -19,7 +18,6 @@ from app.schemas import (
     ContactContent,
     ProfileContent,
     ProjectsContent,
-    SummarizerContent,
 )
 
 CONTENT_DIR = BACKEND_ROOT / "data" / "content"
@@ -31,7 +29,6 @@ def _load(filename: str) -> dict:
 
 PROFILE = ProfileContent(**_load("profile.json"))
 BROWSER = BrowserContent(**_load("browser.json"))
-SUMMARIZER = SummarizerContent(**_load("summarizer.json"))
 ASK = AskContent(**_load("ask.json"))
 CONTACT = ContactContent(**_load("contact.json"))
 PROJECTS = ProjectsContent(**_load("projects.json"))

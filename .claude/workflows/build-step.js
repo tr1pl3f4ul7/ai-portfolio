@@ -44,7 +44,7 @@ const SURVEY_SCHEMA = {
   required: ['deliverable', 'layer', 'test_command', 'constraints', 'existing_files'],
   properties: {
     deliverable: { type: 'string', description: 'One sentence: what this step must produce' },
-    layer: { type: 'string', description: 'backend | web | edge | mobile | infra | docs | ci | mixed' },
+    layer: { type: 'string', description: 'backend | web | edge | infra | docs | ci | mixed' },
     test_command: { type: 'string', description: 'Exact command to run this layer tests' },
     constraints: { type: 'array', items: { type: 'string' }, description: 'Binding rules from the plan and the layer CLAUDE.md' },
     existing_files: { type: 'array', items: { type: 'string' } },
@@ -290,7 +290,6 @@ Layer test conventions (${survey.layer}) — follow the layer CLAUDE.md exactly:
 - backend: pytest; TestClient for endpoints; **Claude API always mocked**, never live-called.
 - edge: vitest over the pure classification logic, independent of the Workers runtime.
 - web: component/interaction tests; WebLLM inference itself is verified manually.
-- mobile: widget tests for loading/result/error states; unit tests for the API client.
 - infra: shellcheck, plus an idempotency check (run twice, no errors, no duplicate config).
 
 Write tests that assert BEHAVIOUR, not implementation detail. A test that would still pass with

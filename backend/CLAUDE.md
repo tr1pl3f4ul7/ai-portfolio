@@ -29,7 +29,7 @@ backend/
 ├── app/
 │   ├── main.py        # FastAPI app, route registration, Sentry init
 │   ├── config.py      # Settings from env vars — the ONLY place os.environ is read
-│   ├── schemas.py     # Pydantic request/response models, shared with web + mobile
+│   ├── schemas.py     # Pydantic request/response models, shared with web
 │   ├── rag.py         # embed → retrieve → build prompt → call Claude
 │   ├── triage.py      # contact classification/extraction/draft reply
 │   └── ingest.py      # chunk + embed source content into the vector store  (Step 2.2)
@@ -49,8 +49,8 @@ embedded index built from it is a build artefact — regenerate it, don't commit
   against the real API is fine — run it by hand, keep it out of CI.
 - **Load the embedding model once at startup**, not per request. It's ~90 MB resident; the VM
   has 12 GB shared with nginx and the OS.
-- **Every endpoint gets a Pydantic response model.** The web and mobile clients both depend on
-  these shapes — they're the contract.
+- **Every endpoint gets a Pydantic response model.** The web client depends on these shapes —
+  they're the contract.
 - `/health` must stay dependency-free and fast. An uptime monitor hits it every few minutes and
   the deploy smoke test gates on it. Don't make it call Claude or touch the vector store.
 - Secrets come from the environment. `ANTHROPIC_API_KEY` never appears in source, tests,

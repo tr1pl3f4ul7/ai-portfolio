@@ -1,8 +1,8 @@
 """Request and response models.
 
-These are the API contract. The web chat widget, the Flutter app and the
-Cloudflare Worker all read these shapes, so a change here is a change to three
-clients — see the `api-contract` skill before editing.
+These are the API contract. The web chat widget and the Cloudflare Worker
+both read these shapes, so a change here is a change to two clients — see
+the `api-contract` skill before editing.
 """
 
 from __future__ import annotations
@@ -107,12 +107,12 @@ class ErrorResponse(BaseModel):
 # --- Content -----------------------------------------------------------------
 #
 # Portfolio copy, served so it can be edited once (a JSON file, a commit, a
-# backend deploy) without a web rebuild or an app-store resubmission for
-# mobile. Source files live in data/content/ — see app/content.py.
+# backend deploy) without a web rebuild. Source files live in data/content/ —
+# see app/content.py.
 
 
 class ProfileContent(BaseModel):
-    """Hero copy — the web hero and the mobile Home tab share this."""
+    """Hero copy — the web hero."""
 
     name: str
     location: str
@@ -128,30 +128,17 @@ class SectionContent(BaseModel):
 
 
 class BrowserContent(SectionContent):
-    """Web's on-device project-finder section copy.
-
-    Web-only: mobile has no on-device search, it has the summarizer instead —
-    the direct counterpart is `SummarizerContent`, not this.
-    """
-
-
-class SummarizerContent(SectionContent):
-    """Mobile's on-device section copy, plus the source text it condenses.
-
-    Mobile-only, the direct counterpart to `BrowserContent`.
-    """
-
-    source_text: str
+    """Web's on-device project-finder section copy."""
 
 
 class AskContent(SectionContent):
-    """Chat section copy, shared by web and mobile."""
+    """Chat section copy."""
 
     suggestions: list[str]
 
 
 class ContactContent(SectionContent):
-    """Contact section copy, shared by web and mobile."""
+    """Contact section copy."""
 
 
 class ProjectItem(BaseModel):
@@ -166,9 +153,8 @@ class ProjectItem(BaseModel):
 class ProjectsContent(BaseModel):
     """The project cards.
 
-    Shared by web's "selected work" grid, web's on-device finder (which
-    matches against these as its corpus — decision 44), and mobile's
-    Projects tab.
+    Shared by web's "selected work" grid and web's on-device finder (which
+    matches against these as its corpus — decision 44).
     """
 
     label: str

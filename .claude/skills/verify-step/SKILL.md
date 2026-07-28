@@ -36,7 +36,6 @@ Pick the command from the touched directory's `CLAUDE.md`:
 | `backend/` | `cd backend && pytest -v` |
 | `edge/` | `cd edge && npx vitest run` |
 | `web/` | per the framework chosen in Step 3.1 |
-| `mobile/` | `cd mobile && flutter test` |
 | `infra/` | `shellcheck infra/setup.sh` + run it twice for idempotency |
 
 Report the **real output**. If tests fail, say so with the failure text. If you didn't run them,

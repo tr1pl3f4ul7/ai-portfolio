@@ -22,7 +22,6 @@ Every step that produces code or config includes its own testing task, following
 - **Backend (FastAPI)**: `pytest` unit tests for logic (classification parsing, retrieval ranking), integration tests for endpoints using `httpx`/`TestClient`, mocked Claude API calls in CI (no live API calls in automated tests)
 - **Edge (Cloudflare Worker)**: `vitest` with `@cloudflare/vitest-pool-workers` for unit tests; local `wrangler dev` smoke test before deploy
 - **Web**: basic component/interaction tests (Playwright or Vitest depending on framework chosen) plus a manual cross-browser smoke check for the WebLLM widget
-- **Flutter**: widget tests for UI, unit tests for API client and on-device inference wrapper, `flutter test` in CI
 - **Infra**: idempotency check on `setup.sh` (safe to re-run), a post-deploy smoke test hitting `/health` after every backend deploy
 
 ---
@@ -38,9 +37,7 @@ A portfolio site that deliberately demonstrates four distinct AI deployment patt
 | Server | Oracle Cloud VM (Ampere A1, 2 OCPU/12GB) | RAG chatbot (embeddings + vector store) answers questions about LJ's experience |
 | Cloud API | Anthropic Claude API | Contact form triage (classify, extract fields, draft reply) + RAG generation |
 
-Plus: a Flutter mobile app reusing the same backend, with on-device summarization via `flutter_local_ai`.
-
-Everything lives in one monorepo with path-filtered GitHub Actions CI/CD deploying to four separate targets (Oracle VM, Cloudflare Workers, GitHub Pages/Cloudflare Pages for web, and mobile build artifacts).
+Everything lives in one monorepo with path-filtered GitHub Actions CI/CD deploying to three separate targets (Oracle VM, Cloudflare Workers, GitHub Pages/Cloudflare Pages for web).
 
 ---
 
@@ -53,17 +50,15 @@ Everything lives in one monorepo with path-filtered GitHub Actions CI/CD deployi
 | Embedding model | `sentence-transformers/all-MiniLM-L6-v2` | Small, CPU-friendly, ARM64-compatible |
 | Contact form triage | Claude API (Haiku for cost, Sonnet if quality needed) | Structured JSON output: intent classification + field extraction + draft reply |
 | Browser on-device model | WebLLM, Llama-3.2-1B-Instruct or Qwen2.5-0.5B-Instruct (MLC quantized) | Small enough for reasonable download size |
-| Mobile on-device model | `flutter_local_ai` (wraps Apple's on-device Foundation Models on iOS and Gemini Nano/ML Kit GenAI on Android) | Uses each platform's built-in on-device AI rather than bundling a model — no download size, native performance |
 | Edge pre-filter | Cloudflare Workers AI, small model (e.g. `@cf/meta/llama-3.2-1b-instruct`) | Spam/intent pre-check before hitting Claude API |
 | Reverse proxy / TLS | nginx + certbot (Let's Encrypt) | Standard, well-documented |
 | Process management | systemd service for FastAPI app | Simple, no extra orchestration needed at this scale |
 | DNS / CDN | Cloudflare (proxied) | Handles DNS, proxying, and TLS for the domain |
-| Mobile framework | Flutter | Matches LJ's existing mobile experience, single codebase both stores |
 | Monorepo | Yes, single repo | One README tells the whole story; shared contracts (API schemas) live in one place |
-| Error tracking / crash reporting | Sentry (backend, web, mobile) | Same tool, same dashboard, across three completely different runtimes (Python, browser JS, Flutter) — a stronger "one coherent observability story" than splitting tools per platform |
-| Product analytics | PostHog (web + mobile) | Autocapture, session replay, and event tracking from one SDK family across both surfaces; open-source with a generous free tier |
+| Error tracking / crash reporting | Sentry (backend, web) | Same tool, same dashboard, across two different runtimes (Python, browser JS) — a stronger "one coherent observability story" than splitting tools per platform |
+| Product analytics | PostHog (web) | Autocapture, session replay, and event tracking; open-source with a generous free tier |
 
-**Note on analytics/crash reporting choice**: Firebase (Analytics + Crashlytics) and Supabase were both considered. Firebase is a fine default but is so common it doesn't differentiate much, and using Supabase for web analytics while Firebase for mobile would mean two unrelated tools with no shared reasoning behind the split. Sentry + PostHog were chosen instead because each is a *single* tool spanning multiple layers of the stack (Sentry across backend/web/mobile; PostHog across web/mobile), which tells a more deliberate story than picking one tool per platform.
+**Note on analytics/crash reporting choice**: Firebase (Analytics + Crashlytics) and Supabase were both considered. Firebase is a fine default but is so common it doesn't differentiate much. Sentry + PostHog were chosen instead because each is a *single* tool spanning multiple layers of the stack (Sentry across backend/web; PostHog for web), which tells a more deliberate story than picking one tool per platform.
 
 ---
 
@@ -72,7 +67,6 @@ Everything lives in one monorepo with path-filtered GitHub Actions CI/CD deployi
 ```
 ai-portfolio/
 ├── web/                    # One-pager: HTML/CSS/JS (or lightweight framework), scroll animations, WebLLM widget
-├── mobile/                 # Flutter app
 ├── backend/                # FastAPI app: contact form triage + RAG chatbot
 │   ├── app/
 │   ├── data/               # source content for RAG (resume, project descriptions)
@@ -80,15 +74,14 @@ ai-portfolio/
 ├── edge/                   # Cloudflare Worker (Workers AI pre-filter)
 ├── docs/
 │   ├── architecture.md     # Mermaid diagram + explanation of all 4 inference layers
-│   ├── decisions.md        # Decision log (why Ampere A1, why Cloudflare Workers AI, why Flutter, etc.)
+│   ├── decisions.md        # Decision log (why Ampere A1, why Cloudflare Workers AI, etc.)
 │   └── runbook.md          # How to deploy, rotate secrets, restart services
 ├── .github/
 │   └── workflows/
 │       ├── backend-ci.yml
 │       ├── backend-deploy.yml
 │       ├── edge-deploy.yml
-│       ├── web-deploy.yml
-│       └── mobile-build.yml
+│       └── web-deploy.yml
 ├── infra/
 │   ├── nginx/              # nginx config templates
 │   ├── systemd/            # service unit files
@@ -225,8 +218,7 @@ Each phase is broken into individual steps. Do not start step N+1 until step N's
 
 ### Phase 6 — CI/CD (GitHub Actions)
 
-Covers the three targets that already exist (backend, edge, web). Mobile's own CI/CD — including
-store publishing — is Step 7.5, once Phase 7 has actually built something to publish.
+Covers the three targets: backend, edge, web.
 
 **Step 6.1 — Secrets**
 - `🧑 MANUAL`: Add required secrets to GitHub repo settings — Claude Code lists exact names needed (see Section 5)
@@ -244,36 +236,16 @@ store publishing — is Step 7.5, once Phase 7 has actually built something to p
 
 ---
 
-### Phase 7 — Flutter Mobile App
+### Phase 7 — removed
 
-**Step 7.1 — Scaffold + API client + core screens**
-- `🤖 CLAUDE CODE`: Scaffold Flutter app; build an API client covering `/chat`, `/contact`, and all
-  six `/content/*` endpoints (decision 57)
-- `🤖 CLAUDE CODE`: Build a home/dashboard screen (hero text, buttons to the four tabs below) plus
-  bottom navigation to summarizer (placeholder pending Step 7.2), projects, chat, and contact
-  screens — the full five-screen scope decided in decision 58
-- `🤖 CLAUDE CODE`: Test: unit tests for the API client (mocked HTTP), widget tests for core screens
-- `✅ VERIFY`: LJ runs the app in a simulator/emulator and confirms it loads and can reach the live backend
-
-**Step 7.2 — On-device summarizer**
-- `🤖 CLAUDE CODE`: Integrate `flutter_local_ai` with a small on-device model for on-device summarization
-- `🤖 CLAUDE CODE`: Test: widget test for the summarizer UI state (loading/result/error), manual check of actual inference output
-- `✅ VERIFY`: LJ triggers the summarizer on a real device/simulator and confirms it works without network access
-
-**Step 7.3 — Analytics and crash reporting**
-- `🧑 MANUAL`: Create Sentry Flutter project and PostHog project (or reuse web PostHog project as a separate environment), provide keys
-- `🤖 CLAUDE CODE`: Integrate `sentry_flutter` (crash/error reporting) and `posthog_flutter` (event tracking: screen views, chat used, summarizer used)
-- `🤖 CLAUDE CODE`: Test: widget test confirming events fire on key interactions (mocked SDKs); trigger a deliberate test crash manually
-- `✅ VERIFY`: LJ confirms the test crash appears in Sentry and a test event appears in PostHog
-
-**Step 7.4 — Store readiness**
-- `🧑 MANUAL`: Both the Apple App Store and Google Play are in scope (decision 42) — create the Apple Developer and Google Play Developer accounts, and gather what Step 7.5's automated publishing needs: an App Store Connect API key, an Apple signing certificate + provisioning profile, and a Google Play service-account JSON + upload keystore
-- `✅ VERIFY`: LJ confirms both accounts exist and the signing/publishing credentials are in hand
-
-**Step 7.5 — Mobile CI/CD and store publishing**
-- `🤖 CLAUDE CODE`: `mobile-build.yml` — Flutter test + build APK/IPA on tag (path-filtered to `mobile/**`), publishing to the Google Play internal testing track and TestFlight using Step 7.4's credentials
-- `🤖 CLAUDE CODE`: Test: workflow produces a build artifact on a tag push; publishing step is dry-run against the internal/test track only, never production
-- `✅ VERIFY`: LJ confirms the build lands in both the Google Play internal testing track and TestFlight
+A Flutter mobile app (scaffold, on-device summarizer via `flutter_local_ai`, analytics/crash
+reporting, store readiness, and store-publishing CI/CD) was built through Step 7.3 and partially
+verified, then abandoned entirely once Step 7.4's real-device verification made the actual
+cost/benefit clear: no paid developer accounts, extra pipelines, or device-farm/virtual-Mac builds
+are worth it for a feature a visitor would need to install an app, own a supported device, and
+press one button to see a summarized version of text already visible on the web page above it. See
+`docs/decisions.md` for the full reasoning and the record of what was built and learned along the
+way. Phase numbering is left as-is rather than renumbered, so this gap is intentional.
 
 ---
 
@@ -293,7 +265,7 @@ store publishing — is Step 7.5, once Phase 7 has actually built something to p
 ## 5. Secrets / Environment Variables Checklist
 
 Names below match what the code actually reads (`backend/.env.example`, `web/.env.example`,
-`edge/.env.example`, `mobile/.env.example`) — this list originally predated several decisions
+`edge/.env.example`) — this list originally predated several decisions
 (Resend over SMTP, decision 33; the actual `VITE_`-prefixed names web reads) and drifted from them
 until Step 6.1 corrected it.
 
@@ -313,17 +285,6 @@ until Step 6.1 corrected it.
   `web-ci.yml`/`web-deploy.yml`; the web app runs with both features off if either is unset
 - `VITE_POSTHOG_HOST` — optional, only if not using PostHog's default US region (`web/src/analytics.ts` already defaults to `https://us.i.posthog.com`)
 
-**Mobile local secrets (Step 7.3), not yet in GitHub Actions:**
-- `SENTRY_DSN`, `POSTHOG_KEY`, `POSTHOG_HOST` — read via `--dart-define-from-file=.env`, Flutter's
-  own `.env`-format support for `--dart-define-from-file` (`mobile/lib/observability.dart`,
-  `mobile/lib/analytics.dart`). Both features run off if unset, same as web. Kept local-only
-  (`mobile/.env`, gitignored) until Step 7.5 builds `mobile-build.yml` — at that point these move
-  to GitHub Actions secrets the same way the backend and web ones did, rather than staying
-  hand-typed on whichever machine happens to run a release build.
-
-**Not needed yet** — Phase 7.4, once the store-readiness accounts exist: the Apple signing
-certificate + provisioning profile, the Google Play upload keystore and service-account JSON.
-
 ---
 
 ## 6. Definition of Done
@@ -332,11 +293,10 @@ certificate + provisioning profile, the Google Play upload keystore and service-
 - [ ] "Summarize my experience" button runs entirely in-browser via WebLLM
 - [ ] RAG chatbot answers questions about LJ's background using retrieved context + Claude API
 - [ ] Cloudflare Workers AI pre-filters contact submissions before they reach the backend
-- [ ] Flutter app builds successfully, hits the same backend, has its own on-device summarizer
-- [ ] All four deploy targets (VM, Workers, static site, mobile build) deploy via GitHub Actions on the appropriate path filter
+- [ ] All three deploy targets (VM, Workers, static site) deploy via GitHub Actions on the appropriate path filter
 - [ ] `docs/architecture.md` and `docs/decisions.md` are complete and readable by someone with no prior context
 - [ ] `/health` endpoint monitored by an external uptime check
-- [ ] Sentry capturing errors from backend, web, and mobile; PostHog capturing key events from web and mobile
+- [ ] Sentry capturing errors from backend and web; PostHog capturing key events from web
 
 ---
 

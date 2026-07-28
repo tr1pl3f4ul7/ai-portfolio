@@ -17,15 +17,11 @@ content of the portfolio.
 | **Server** | Oracle Cloud VM (Ampere A1, 2 OCPU / 12 GB) | RAG chatbot — embeddings + vector store — answers questions about my experience |
 | **Cloud API** | Anthropic Claude API | Contact form triage (classify, extract, draft reply) + RAG generation |
 
-Plus a **Flutter mobile app** reusing the same backend, with on-device summarisation via each
-platform's built-in AI (Apple Foundation Models on iOS, Gemini Nano / ML Kit GenAI on Android).
-
 ## Repo layout
 
 ```
 ai-portfolio/
 ├── web/          # One-pager: scroll animations, chat widget, on-device project finder
-├── mobile/       # Flutter app
 ├── backend/      # FastAPI: contact triage + RAG chatbot
 │   ├── app/
 │   ├── data/     # source content for RAG
@@ -33,7 +29,7 @@ ai-portfolio/
 ├── edge/         # Cloudflare Worker (Workers AI pre-filter)
 ├── docs/         # architecture.md, decisions.md, runbook.md
 ├── infra/        # nginx config, systemd units, VM bootstrap script
-└── .github/workflows/   # path-filtered CI/CD to four separate targets
+└── .github/workflows/   # path-filtered CI/CD to three separate targets
 ```
 
 ## Stack
@@ -45,13 +41,12 @@ ai-portfolio/
 | Embeddings | `sentence-transformers/all-MiniLM-L6-v2` |
 | Contact triage / RAG generation | Claude API |
 | Browser on-device model | transformers.js — all-MiniLM-L6-v2 (ONNX, embeddings only — retrieval, not generation) |
-| Mobile on-device model | `flutter_local_ai` |
 | Edge pre-filter | Cloudflare Workers AI |
 | Reverse proxy / TLS | nginx + Let's Encrypt |
 | Process management | systemd |
 | DNS / CDN | Cloudflare (proxied) |
-| Error tracking | Sentry (backend + web + mobile) |
-| Product analytics | PostHog (web + mobile) |
+| Error tracking | Sentry (backend + web) |
+| Product analytics | PostHog (web) |
 
 Rationale for each choice — including the ones that were rejected — lives in
 [`docs/decisions.md`](docs/decisions.md).

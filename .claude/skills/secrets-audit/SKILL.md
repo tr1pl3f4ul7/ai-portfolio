@@ -5,7 +5,7 @@ description: Scan the repo and pending changes for exposed credentials before co
 
 # Secrets Audit
 
-This project wires together four deploy targets and roughly a dozen credentials. A single leaked
+This project wires together three deploy targets and roughly a dozen credentials. A single leaked
 key in a **public** portfolio repo compromises the Anthropic account, the Oracle VM, the
 Cloudflare zone, or all three. This audit is cheap; the failure is not.
 
@@ -20,13 +20,13 @@ From §5 of `docs/PROJECT_PLAN.md`:
 | `ORACLE_VM_HOST` | GitHub Actions secret |
 | `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` | GitHub Actions secret, wrangler config |
 | `SENTRY_DSN_BACKEND` | VM env file |
-| `SENTRY_DSN_WEB`, `SENTRY_DSN_MOBILE` | build-time config — **publishable** |
-| `POSTHOG_API_KEY_WEB`, `POSTHOG_API_KEY_MOBILE`, `POSTHOG_HOST` | build-time config — **publishable** |
+| `VITE_SENTRY_DSN` | build-time config — **publishable** |
+| `VITE_POSTHOG_KEY`, `VITE_POSTHOG_HOST` | build-time config — **publishable** |
 | SMTP credentials / notification webhook | VM env file |
 
 **Publishable vs. secret.** PostHog project keys and Sentry DSNs are designed to ship in client
-code — finding one in `web/` is not a leak. `ANTHROPIC_API_KEY` in `web/` or `mobile/` is a
-critical finding, always.
+code — finding one in `web/` is not a leak. `ANTHROPIC_API_KEY` in `web/` is a critical finding,
+always.
 
 ## Procedure
 
@@ -45,7 +45,7 @@ anything named key/token/secret/password/dsn.
 Verify `.gitignore` catches them, rather than assuming:
 
 ```bash
-git check-ignore -v .env backend/.env edge/.dev.vars mobile/android/key.properties
+git check-ignore -v .env backend/.env edge/.dev.vars
 ```
 
 Every one must report a matching rule. A missing rule is a finding even if no file exists yet —
@@ -73,9 +73,9 @@ Empty output is the pass condition.
 
 ### 5. Client bundles
 
-Confirm `ANTHROPIC_API_KEY` appears nowhere under `web/` or `mobile/`. If client code needs
-Claude, it goes through the backend — that's the architecture, and a direct client call is a
-design error, not just a leak.
+Confirm `ANTHROPIC_API_KEY` appears nowhere under `web/`. If client code needs Claude, it goes
+through the backend — that's the architecture, and a direct client call is a design error, not
+just a leak.
 
 ## If you find one
 

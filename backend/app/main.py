@@ -30,7 +30,6 @@ from app.schemas import (
     ProfileContent,
     ProjectsContent,
     Source,
-    SummarizerContent,
 )
 
 # Before the app is constructed: Sentry's ASGI integration wraps the app at
@@ -115,37 +114,31 @@ def health() -> HealthResponse:
 
 @app.get("/content/profile", response_model=ProfileContent)
 def content_profile() -> ProfileContent:
-    """Hero copy — the web hero and the mobile Home tab share this."""
+    """Hero copy — the web hero."""
     return content.PROFILE
 
 
 @app.get("/content/browser", response_model=BrowserContent)
 def content_browser() -> BrowserContent:
-    """Web's on-device project-finder section copy. Web-only."""
+    """Web's on-device project-finder section copy."""
     return content.BROWSER
-
-
-@app.get("/content/summarizer", response_model=SummarizerContent)
-def content_summarizer() -> SummarizerContent:
-    """Mobile's on-device section copy and source text. Mobile-only."""
-    return content.SUMMARIZER
 
 
 @app.get("/content/ask", response_model=AskContent)
 def content_ask() -> AskContent:
-    """Chat section copy, shared by web and mobile."""
+    """Chat section copy."""
     return content.ASK
 
 
 @app.get("/content/contact", response_model=ContactContent)
 def content_contact() -> ContactContent:
-    """Contact section copy, shared by web and mobile."""
+    """Contact section copy."""
     return content.CONTACT
 
 
 @app.get("/content/projects", response_model=ProjectsContent)
 def content_projects() -> ProjectsContent:
-    """The project cards — web's grid, its on-device finder, and mobile's Projects tab."""
+    """The project cards — web's grid and its on-device finder."""
     return content.PROJECTS
 
 

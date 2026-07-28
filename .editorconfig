@@ -1,4 +1,4 @@
-# Consistent formatting across a monorepo spanning Python, Dart, TS, YAML and shell.
+# Consistent formatting across a monorepo spanning Python, TS, YAML and shell.
 root = true
 
 [*]
@@ -11,10 +11,6 @@ indent_size = 2
 
 [*.py]
 indent_size = 4
-max_line_length = 100
-
-[*.dart]
-indent_size = 2
 max_line_length = 100
 
 [*.{js,ts,jsx,tsx,json,jsonc}]

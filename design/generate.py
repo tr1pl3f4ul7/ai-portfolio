@@ -1,16 +1,10 @@
-"""Generate platform token files from design/tokens.json.
+"""Generate web token files from design/tokens.json.
 
-    python design/generate.py            # write the outputs
-    python design/generate.py --check    # verify they are current (CI)
+    python design/generate.py            # write the output
+    python design/generate.py --check    # verify it is current (CI)
 
-The web page and the Flutter app are two consumers of one visual contract —
-the same shape as the API contract with its three clients. Hand-maintaining
-both would drift, and design drift is silent: nothing fails, the two clients
-just stop looking like one product. So both outputs are generated and neither
-is ever hand-edited.
-
-Dart is emitted only once mobile/lib/ exists (Phase 6). Until then this writes
-CSS alone, so nothing is pre-created for a phase we have not reached.
+`tokens.json` is the single source; `tokens.css` is generated from it and
+never hand-edited, so a value only ever needs to be decided once.
 """
 
 from __future__ import annotations
@@ -22,7 +16,6 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 TOKENS = ROOT / "design" / "tokens.json"
 CSS_OUT = ROOT / "web" / "src" / "styles" / "tokens.css"
-DART_OUT = ROOT / "mobile" / "lib" / "theme" / "tokens.dart"
 
 BANNER = "GENERATED FROM design/tokens.json — DO NOT EDIT. Run: python design/generate.py"
 
@@ -92,61 +85,8 @@ def render_css(tokens: dict) -> str:
     return "\n".join(lines)
 
 
-def _dart_color(hex_value: str) -> str:
-    return f"Color(0xFF{hex_value.lstrip('#').upper()})"
-
-
-def render_dart(tokens: dict) -> str:
-    """Flutter side of the same contract. Colours, sizes, spacing and motion.
-
-    Font stacks are intentionally omitted — Flutter resolves families by name,
-    not by a CSS fallback list, so the mobile app picks its own equivalents in
-    Phase 6 rather than inheriting a stack that means nothing to it.
-    """
-    lines = [
-        f"// {BANNER}",
-        "",
-        "import 'package:flutter/material.dart';",
-        "",
-        "/// Design tokens shared with the web client. See docs/design-system.md.",
-        "abstract final class Tokens {",
-    ]
-
-    lines.append("  // --- color ---")
-    for name, spec in tokens["color"].items():
-        lines.append(f"  static const {name} = {_dart_color(spec['value'])};")
-
-    lines.append("")
-    lines.append("  // --- size (logical pixels; 1rem = 16) ---")
-    for name, spec in tokens["size"].items():
-        rem = float(spec["value"].replace("rem", ""))
-        ident = "s" + name.lstrip("s").replace("-", "Neg")
-        lines.append(f"  static const {ident} = {rem * 16:.1f};")
-
-    lines.append("")
-    lines.append("  // --- space (logical pixels) ---")
-    for name, spec in tokens["space"].items():
-        rem = float(spec["value"].replace("rem", ""))
-        lines.append(f"  static const space{name} = {rem * 16:.1f};")
-
-    lines.append("")
-    lines.append("  // --- motion ---")
-    for name, spec in tokens["motion"].items():
-        if spec["value"].endswith("ms"):
-            ms = int(spec["value"].replace("ms", ""))
-            lines.append(f"  static const {name} = Duration(milliseconds: {ms});")
-
-    radius = float(tokens["radius"]["sharp"]["value"].replace("px", ""))
-    lines += ["", "  // --- radius ---", f"  static const sharp = {radius:.1f};", "}", ""]
-    return "\n".join(lines)
-
-
 def targets(tokens: dict) -> list[tuple[Path, str]]:
-    out = [(CSS_OUT, render_css(tokens))]
-    # Only once the mobile app exists. Phase 6 owns that directory.
-    if DART_OUT.parent.parent.exists():
-        out.append((DART_OUT, render_dart(tokens)))
-    return out
+    return [(CSS_OUT, render_css(tokens))]
 
 
 def main() -> int:
