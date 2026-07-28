@@ -2152,6 +2152,66 @@ silently again.
 
 ---
 
+## 60. jni left unpinned — sentry_flutter's exact version pin resolves it correctly on its own
+
+**Date:** 2026-07-28
+**Status:** accepted — supersedes the `dependency_overrides: jni: 1.0.0` pin from decision 59's
+commit, which was itself never recorded as its own decision and turned out to be wrong
+
+**Context:** Step 7.2 hit a real bug: `jni` 1.0.1 (a transitive dependency, pulled in via
+`flutter_local_ai`'s `genui` dependency) added logic to its `android/build.gradle` that checks
+`agpMajor < 9` to decide whether to apply the `kotlin-android` plugin, assuming AGP 9+ provides a
+`kotlin { }` DSL extension natively. It doesn't (at least not in 9.0.1, what this project uses),
+so that branch never runs and the script's own `kotlin { }` block fails to resolve — a real
+upstream bug, confirmed by reading jni's actual Gradle script source. `dependency_overrides:
+jni: 1.0.0` fixed it, since 1.0.0 predates that logic entirely.
+
+That override was added and committed without being recorded here — an oversight this entry also
+corrects. It went unnoticed until Step 7.3 added `sentry_flutter`, which pins `jni` to an *exact*
+version — `jni: 0.14.2`, not a range — in its own `pubspec.yaml` (its generated JNI bindings are
+tied to that exact API shape). `dependency_overrides` bypasses pub's constraint checking rather
+than erroring on the conflict, so `flutter pub get` kept succeeding while the override's `1.0.0`
+silently fought sentry_flutter's `0.14.2` — the failure only surfaced as a `flutter analyze` /
+`flutter test` compile error (`Type 'jni$_.JObjType' not found`) in any file importing
+`observability.dart`, since that's the only import path that pulls in `sentry_flutter`'s bindings.
+
+**Decision:** Remove the override entirely. Verified `jni: 0.14.2`'s own `android/build.gradle`
+has no Kotlin-plugin logic at all (same as 1.0.0) by reading its source directly, so it's immune
+to the AGP 9 bug independently of the version conflict. With no override, pub's own constraint
+solver is forced to resolve `jni` to exactly `0.14.2` project-wide — sentry_flutter's exact pin is
+the only version that satisfies every constraint simultaneously, so this is deterministic, not
+incidental: as long as sentry_flutter keeps that exact pin, jni cannot resolve to anything else,
+override or not.
+
+**Rejected:**
+- *Downgrade AGP to 8.13.2 (and Gradle to 8.13) so jni 1.0.1's own `agpMajor < 9` branch takes the
+  safe path, unmodified.* Tried first, and it does work — but it fixes the problem by moving the
+  whole toolchain backward across three interdependent pieces (AGP, Gradle, and implicitly
+  Kotlin's supported range) to route around a bug that a one-line dependency fact already avoids
+  for free. More moving parts, more surface for a future, unrelated incompatibility, for no
+  benefit once the real constraint (sentry_flutter's exact pin) was actually understood.
+- *Override `jni` to exactly `0.14.2` explicitly.* Would work identically to removing the override
+  — pub resolves there anyway — but an explicit override implies a conflict is being forced, which
+  invites the next reader to assume one still exists. No override reads as what's actually true:
+  there's no conflict, one version is simply the only correct answer.
+
+**Consequences:**
+- If `flutter_local_ai` or `sentry_flutter` ever relaxes its `jni` constraint independently, this
+  resolution could shift again, silently. Anyone touching either dependency should re-run `flutter
+  analyze` across every file that imports `observability.dart` before trusting a green `flutter
+  pub get` — the failure mode here (constraint conflict masked by an override, or a future
+  constraint relaxation) doesn't surface until compile time, on exactly one import path, which is
+  easy to miss if the change under test doesn't happen to touch it.
+- This whole incident was invisible to `flutter analyze`/`flutter test` at the time the bad
+  override was committed, because CI's Android build check (Step 7.2, before `sentry_flutter`
+  existed) never exercised the conflicting import path, and no local `flutter test` run happened
+  between adding `sentry_flutter` and discovering the missing override days later. The actual
+  discovery path was PostHog events never appearing in the dashboard during Step 7.3's manual
+  verification — worth remembering that a live-service check can surface a build regression
+  `flutter analyze` should have caught, if the analyze run itself never happened in between.
+
+---
+
 ## Open decisions
 
 Not yet decided. Each will get a full entry when resolved.

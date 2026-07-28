@@ -8,6 +8,7 @@ library;
 
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:posthog_flutter/posthog_flutter.dart';
 
 abstract class Analytics {
@@ -45,7 +46,10 @@ Future<Analytics> initAnalytics() async {
     ..host = const String.fromEnvironment(
       'POSTHOG_HOST',
       defaultValue: 'https://us.i.posthog.com',
-    );
+    )
+    // Verbose [PostHog]-prefixed console logging — debug builds only, so it
+    // never ships. This is what Step 7.3's verification greps for.
+    ..debug = kDebugMode;
   await Posthog().setup(config);
   return PostHogAnalytics();
 }
