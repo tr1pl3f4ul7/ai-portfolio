@@ -118,6 +118,8 @@ check blanket_reject_running 0      # Oracle's REJECT gone from live chains
 check blanket_reject_persisted 0    # ...and from rules.v4, so it survives reboot
 check backup_exists yes             # original ruleset recoverable
 check curl_status 200               # nginx actually serves through the firewall
+check nginx_logrotate_exists yes    # ships with the nginx package
+check journald_dropin_exists yes    # Step 8.2's journald cap was written
 
 # Oracle's link-local egress rules must survive, not be collateral damage --
 # and must be hooked where they actually see traffic. Appended to OUTPUT the

@@ -19,6 +19,9 @@ readonly APP_HOME="/opt/ai-portfolio"
 readonly APP_ENV_FILE="/etc/ai-portfolio.env"
 readonly PYTHON="python3.12"
 
+readonly JOURNALD_DROPIN_DIR="/etc/systemd/journald.conf.d"
+readonly JOURNALD_DROPIN="${JOURNALD_DROPIN_DIR}/ai-portfolio.conf"
+
 readonly PACKAGES=(
   nginx
   certbot
@@ -359,7 +362,46 @@ else
   fi
 fi
 
-# --- 8. Summary -------------------------------------------------------------
+# --- 8. Log retention (Step 8.2) --------------------------------------------
+#
+# nginx logs to plain files and the package already installs its own
+# /etc/logrotate.d/nginx (daily, 14 rotations, compressed) — nothing to add
+# there, just confirmed present below. The backend logs through journald
+# instead (see infra/CLAUDE.md), which has no size cap by default and, left
+# alone, can eventually crowd out the ~47 GB boot volume (decision 6) — most
+# of which is already spoken for by the venv, the embedding model, and the
+# vector store. A drop-in is used rather than editing journald.conf directly,
+# so a future package upgrade can't silently revert it.
+
+log "Checking nginx's own log rotation"
+if [[ -f /etc/logrotate.d/nginx ]]; then
+  ok "/etc/logrotate.d/nginx present (ships with the package)"
+else
+  warn "/etc/logrotate.d/nginx missing — nginx logs will grow unbounded"
+fi
+
+log "Bounding journald's disk usage"
+journald_conf_desired=$(mktemp)
+cat > "${journald_conf_desired}" <<'EOF'
+[Journal]
+SystemMaxUse=200M
+SystemKeepFree=1G
+MaxRetentionSec=30day
+EOF
+
+if [[ -f ${JOURNALD_DROPIN} ]] && cmp -s "${journald_conf_desired}" "${JOURNALD_DROPIN}"; then
+  ok "${JOURNALD_DROPIN} already up to date"
+  rm -f "${journald_conf_desired}"
+else
+  mkdir -p "${JOURNALD_DROPIN_DIR}"
+  cp "${journald_conf_desired}" "${JOURNALD_DROPIN}"
+  rm -f "${journald_conf_desired}"
+  ok "wrote ${JOURNALD_DROPIN}"
+  systemctl restart systemd-journald
+  ok "systemd-journald restarted to apply the new limits"
+fi
+
+# --- 9. Summary -------------------------------------------------------------
 
 log "Done"
 
@@ -374,4 +416,5 @@ info "certbot   : ${certbot_version}"
 info "app user  : ${APP_USER} (${APP_HOME})"
 info "env file  : ${APP_ENV_FILE}"
 info "firewall  : ${ufw_state}"
+info "journald  : capped via ${JOURNALD_DROPIN}"
 printf '\n    Verify from your own machine:  curl -I http://<vm-public-ip>\n\n'

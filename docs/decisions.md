@@ -2411,6 +2411,32 @@ decision log recording a past state, not a defect to fix.
 
 ---
 
+## 65. Uptime monitoring: UptimeRobot free tier on `/health`
+
+**Date:** 2026-07-28
+**Status:** accepted
+
+**Context:** Step 8.2 needs `/health` monitored externally, so a dead backend is caught
+independently of anyone happening to visit the site.
+
+**Decision:** A free UptimeRobot HTTP(s) monitor against `https://api.ljubenvassilev.com/health`,
+checked every 5 minutes (the free tier's minimum interval) — no keyword/body matching configured,
+since a plain 2xx is already exactly what `/health` returning `{"status":"ok"}` produces. The
+account also generated a free public status page: <https://stats.uptimerobot.com/jGsw934M4A>.
+
+**Rejected:**
+- *A paid monitoring service or shorter check interval.* Nothing about this project's traffic or
+  stakes justifies it — 5-minute resolution on a portfolio site's health check is more than
+  sufficient, and free is the correct choice for the same reason Oracle's Always Free tier was
+  (decision 1).
+
+**Consequences:**
+- The status page URL is public — anyone with the link can see uptime history. Nothing sensitive
+  is exposed by it (just up/down state and response time), so this is fine to link from anywhere,
+  including the root README (Step 8.3).
+
+---
+
 ## Open decisions
 
 Not yet decided. Each will get a full entry when resolved.

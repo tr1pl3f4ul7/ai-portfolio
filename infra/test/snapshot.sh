@@ -44,3 +44,8 @@ echo "backup_reject_lines=$(grep -c -- '-j REJECT --reject-with icmp-host-prohib
 
 echo "== functional: HTTP on port 80 =="
 echo "curl_status=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 http://127.0.0.1/ || echo FAILED)"
+
+echo "== log retention (Step 8.2) =="
+echo "nginx_logrotate_exists=$(test -f /etc/logrotate.d/nginx && echo yes || echo no)"
+echo "journald_dropin_exists=$(test -f /etc/systemd/journald.conf.d/ai-portfolio.conf && echo yes || echo no)"
+echo "journald_dropin_sha=$(sha256sum /etc/systemd/journald.conf.d/ai-portfolio.conf 2>/dev/null | cut -d' ' -f1)"
