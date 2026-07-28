@@ -11,7 +11,7 @@ Flow: `web form → Worker → (spam? drop) → backend /contact → Claude tria
 | Concern | Choice |
 |---|---|
 | Runtime | Cloudflare Workers |
-| Model | Workers AI, `@cf/meta/llama-3.2-1b-instruct` |
+| Model | Workers AI, `@cf/meta/llama-3.1-8b-fast-v2` (decision 46) |
 | Language | TypeScript |
 | Tooling | `wrangler` |
 | Tests | `vitest` + `@cloudflare/vitest-pool-workers` |

@@ -260,6 +260,12 @@ way. Phase numbering is left as-is rather than renumbered, so this gap is intent
 - `🤖 CLAUDE CODE`: Set up log rotation for nginx/backend on the VM
 - `✅ VERIFY`: LJ confirms the uptime monitor shows a green status
 
+**Step 8.3 — Root README**
+- `🤖 CLAUDE CODE`: Rewrite the root `README.md` to summarize the project clearly, and add a short
+  pointer to each file in `docs/` explaining what it's for, so a reader lands on the right one
+  without opening all of them
+- `✅ VERIFY`: LJ reads it and confirms it's an accurate, useful front door to the repo
+
 ---
 
 ## 5. Secrets / Environment Variables Checklist
