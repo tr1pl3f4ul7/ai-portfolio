@@ -18,7 +18,7 @@ the OS-shipped model on mobile is capable enough to attempt the fuller task.
 | Crash/error | `sentry_flutter` |
 | Analytics | `posthog_flutter` |
 | Tests | `flutter test` — widget + unit |
-| CI | `mobile-build.yml`, APK artefact on tag |
+| CI | `ios-build-check.yml` / `android-build-check.yml` on every push (compile-only, no signing); `mobile-build.yml` at Step 7.5 adds real signing + store publishing on tag |
 
 ## Intended layout
 
@@ -49,14 +49,19 @@ mobile/
 - **The backend base URL is build configuration**, not a hardcoded string.
 - Sentry and PostHog init belongs in one place at startup, guarded so tests don't emit real
   events.
+- **`SENTRY_DSN` / `POSTHOG_KEY` are local secrets, never committed.** Copy `.env.example` to
+  `.env` and fill it in by hand — never have anything paste real values into a commit, a log, or
+  this file. `.env` is read via `--dart-define-from-file`, Flutter's own `.env`-format support;
+  there is no other loading mechanism. GitHub Actions secrets become the CI source once Step 7.5
+  builds the mobile pipeline — there is no `.env` file in CI.
 
 ## Commands
 
 ```bash
 flutter pub get
 flutter test
-flutter run
-flutter build apk --release
+flutter run --dart-define-from-file=.env
+flutter build apk --release --dart-define-from-file=.env
 ```
 
 ## Environment note

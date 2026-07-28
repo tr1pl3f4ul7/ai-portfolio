@@ -49,3 +49,7 @@ app.*.map.json
 key.properties
 *.jks
 *.keystore
+
+# Local secrets — Sentry DSN, PostHog key (Step 7.3). Passed to `flutter run`
+# / `flutter build` via --dart-define-from-file=.env; see .env.example.
+.env

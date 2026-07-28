@@ -293,9 +293,9 @@ store publishing — is Step 7.5, once Phase 7 has actually built something to p
 ## 5. Secrets / Environment Variables Checklist
 
 Names below match what the code actually reads (`backend/.env.example`, `web/.env.example`,
-`edge/.env.example`) — this list originally predated several decisions (Resend over SMTP,
-decision 33; the actual `VITE_`-prefixed names web reads) and drifted from them until Step 6.1
-corrected it.
+`edge/.env.example`, `mobile/.env.example`) — this list originally predated several decisions
+(Resend over SMTP, decision 33; the actual `VITE_`-prefixed names web reads) and drifted from them
+until Step 6.1 corrected it.
 
 **GitHub Actions secrets, needed by Phase 6's workflows:**
 - `ORACLE_VM_SSH_PRIVATE_KEY` — `backend-deploy.yml`'s SSH access to the VM
@@ -313,9 +313,16 @@ corrected it.
   `web-ci.yml`/`web-deploy.yml`; the web app runs with both features off if either is unset
 - `VITE_POSTHOG_HOST` — optional, only if not using PostHog's default US region (`web/src/analytics.ts` already defaults to `https://us.i.posthog.com`)
 
-**Not needed yet** — Phase 7, once the Flutter app and its store-readiness accounts exist:
-mobile Sentry/PostHog keys, the Apple signing certificate + provisioning profile, the Google Play
-upload keystore and service-account JSON.
+**Mobile local secrets (Step 7.3), not yet in GitHub Actions:**
+- `SENTRY_DSN`, `POSTHOG_KEY`, `POSTHOG_HOST` — read via `--dart-define-from-file=.env`, Flutter's
+  own `.env`-format support for `--dart-define-from-file` (`mobile/lib/observability.dart`,
+  `mobile/lib/analytics.dart`). Both features run off if unset, same as web. Kept local-only
+  (`mobile/.env`, gitignored) until Step 7.5 builds `mobile-build.yml` — at that point these move
+  to GitHub Actions secrets the same way the backend and web ones did, rather than staying
+  hand-typed on whichever machine happens to run a release build.
+
+**Not needed yet** — Phase 7.4, once the store-readiness accounts exist: the Apple signing
+certificate + provisioning profile, the Google Play upload keystore and service-account JSON.
 
 ---
 
