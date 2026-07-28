@@ -1,12 +1,15 @@
 # AI Showcase Portfolio
 
+**Live at [ljubenvassilev.com](https://ljubenvassilev.com).**
+
 A portfolio site that deliberately demonstrates **four distinct AI deployment patterns** in one
 project, backed by real infrastructure — provisioned, configured, and deployed by hand rather than
 clicked together on a managed platform.
 
 The point isn't that any single feature is hard. The point is that each one runs inference in a
 *different place*, for a *different reason*, and the trade-offs behind those choices are the actual
-content of the portfolio.
+content of the portfolio. `docs/architecture.md` walks through all four; this README is the front
+door.
 
 ## The four inference layers
 
@@ -27,7 +30,7 @@ ai-portfolio/
 │   ├── data/     # source content for RAG
 │   └── tests/
 ├── edge/         # Cloudflare Worker (Workers AI pre-filter)
-├── docs/         # architecture.md, decisions.md, runbook.md
+├── docs/         # architecture, decisions, design system, build plan — see below
 ├── infra/        # nginx config, systemd units, VM bootstrap script
 └── .github/workflows/   # path-filtered CI/CD to three separate targets
 ```
@@ -53,11 +56,19 @@ Rationale for each choice — including the ones that were rejected — lives in
 
 ## Documentation
 
-- [`docs/architecture.md`](docs/architecture.md) — diagram and walkthrough of all four inference layers
-- [`docs/decisions.md`](docs/decisions.md) — decision log
-- [`docs/runbook.md`](docs/runbook.md) — deploying, rotating secrets, restarting services
+Five files, each answering a different question — start with whichever one matches yours:
+
+| File | Answers | Read it if you want to know... |
+|---|---|---|
+| [`docs/architecture.md`](docs/architecture.md) | *How does it actually work?* | What each of the four layers does, mechanically, and why it lives where it lives. Start here. |
+| [`docs/decisions.md`](docs/decisions.md) | *Why this choice, not another?* | The full decision log — every non-obvious call made while building this, what was rejected instead, and why. `architecture.md` cites specific entries by number throughout. |
+| [`docs/design-system.md`](docs/design-system.md) | *Why does it look like this?* | The visual language — colour, type, motion — and why the terminal-native, dark-only direction was chosen over the alternatives. |
+| [`docs/PROJECT_PLAN.md`](docs/PROJECT_PLAN.md) | *How was this actually built?* | The original step-by-step build plan, worked through one verified step at a time from an empty repo to what's live now. |
+| [`docs/future-enhancements.md`](docs/future-enhancements.md) | *What's deliberately not here yet?* | Ideas explicitly deferred until the plan above was finished, so the scope decision is on record rather than a matter of memory. |
 
 ## Status
 
-Under active construction. This README describes the intended end state; see the commit history
-for what actually exists right now.
+Live and complete — every phase in `docs/PROJECT_PLAN.md` is built, deployed, and verified,
+including this README. `docs/decisions.md` is the record of everything that changed along the way,
+including the one phase (a Flutter mobile app) that was built partway through and then deliberately
+removed — see decision 64.
