@@ -2,9 +2,13 @@
 
 **Live at [ljubenvassilev.com](https://ljubenvassilev.com)** · [uptime status](https://stats.uptimerobot.com/jGsw934M4A)
 
+Built entirely through prompts to Claude Code — every line of application code, every
+infrastructure script, every CI/CD workflow, and every word of documentation, including this
+sentence. Not a single file in this repository was hand-edited.
+
 A portfolio site that deliberately demonstrates **four distinct AI deployment patterns** in one
-project, backed by real infrastructure — provisioned, configured, and deployed by hand rather than
-clicked together on a managed platform.
+project, backed by real infrastructure — provisioned, configured, and deployed on a real VM rather
+than clicked together on a managed platform.
 
 The point isn't that any single feature is hard. The point is that each one runs inference in a
 *different place*, for a *different reason*, and the trade-offs behind those choices are the actual
