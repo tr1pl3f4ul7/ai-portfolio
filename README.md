@@ -7,8 +7,10 @@ infrastructure script, every CI/CD workflow, and every word of documentation, in
 sentence. Not a single file in this repository was hand-edited.
 
 A portfolio site that deliberately demonstrates **four distinct AI deployment patterns** in one
-project, backed by real infrastructure — provisioned, configured, and deployed on a real VM rather
-than clicked together on a managed platform.
+project, backed by real infrastructure. Claude Code wrote every script and config file, but
+provisioning the Oracle Cloud VM, wiring up its firewall, cutting over DNS, installing the TLS
+certificate, and running each deploy step against a live machine was hands-on systems
+administration — not a managed platform's one-click deploy.
 
 The point isn't that any single feature is hard. The point is that each one runs inference in a
 *different place*, for a *different reason*, and the trade-offs behind those choices are the actual
