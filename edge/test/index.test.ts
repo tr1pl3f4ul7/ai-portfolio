@@ -71,6 +71,35 @@ describe("the fetch handler", () => {
     expect(response.status).toBe(405);
   });
 
+  it("answers GET /health without touching Workers AI or the backend", async () => {
+    const env = fakeEnv();
+    const runSpy = vi.spyOn(env.AI, "run");
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const response = await worker.fetch(new Request("https://worker.example.test/health"), env);
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ status: "ok" });
+    expect(runSpy).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("answers HEAD /health too — UptimeRobot's free monitor sends HEAD, not GET", async () => {
+    const response = await worker.fetch(new Request("https://worker.example.test/health", { method: "HEAD" }), fakeEnv());
+
+    expect(response.status).toBe(200);
+  });
+
+  it("still rejects POST /health — it's a read-only check, not a submission route", async () => {
+    const response = await worker.fetch(
+      new Request("https://worker.example.test/health", { method: "POST", body: "{}" }),
+      fakeEnv(),
+    );
+
+    expect(response.status).toBe(405);
+  });
+
   it("rejects malformed JSON without spending inference", async () => {
     const env = fakeEnv();
     const runSpy = vi.spyOn(env.AI, "run");

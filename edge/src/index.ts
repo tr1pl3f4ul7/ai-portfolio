@@ -70,6 +70,27 @@ function syntheticReceipt(): Response {
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
+    // Dependency-free, ahead of everything else below: no CORS check, no
+    // Workers AI call, no forward to the backend. Mirrors backend/app/main.py's
+    // /health exactly, and exists for the same reason — an external uptime
+    // monitor needs something to check that isn't "was a real submission just
+    // classified." GET and HEAD both work; UptimeRobot's free HTTP(s) monitor
+    // sends HEAD by default (see decision 65 / the backend/app/main.py fix
+    // this mirrors) — checked explicitly rather than assumed.
+    //
+    // Handles its own method rejection rather than falling through: nothing
+    // else in this Worker checks the path, only the method, so a POST here
+    // would otherwise be parsed as an attempted contact submission and
+    // rejected with a confusing 400 "Invalid submission" instead of a plain
+    // 405 — caught by a test expecting the latter, not a hypothetical.
+    const url = new URL(request.url);
+    if (url.pathname === "/health") {
+      if (request.method === "GET" || request.method === "HEAD") {
+        return new Response(JSON.stringify({ status: "ok" }), { status: 200, headers: JSON_HEADERS });
+      }
+      return new Response(JSON.stringify({ error: "Method not allowed" }), { status: 405, headers: JSON_HEADERS });
+    }
+
     const origin = request.headers.get("Origin");
 
     if (request.method === "OPTIONS") {
