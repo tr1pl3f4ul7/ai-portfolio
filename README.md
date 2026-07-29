@@ -1,6 +1,6 @@
 # AI Showcase Portfolio
 
-**Live at [ljubenvassilev.com](https://ljubenvassilev.com).**
+**Live at [ljubenvassilev.com](https://ljubenvassilev.com)** · [uptime status](https://stats.uptimerobot.com/jGsw934M4A)
 
 A portfolio site that deliberately demonstrates **four distinct AI deployment patterns** in one
 project, backed by real infrastructure — provisioned, configured, and deployed by hand rather than
