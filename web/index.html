@@ -34,6 +34,13 @@
           <p class="lede" id="hero-tagline"></p>
         </div>
 
+        <!-- Outside .hero-intro on purpose: that block is replaced wholesale
+             if GET /content/profile fails (see src/main.ts,
+             showContentLoadFailure), and this link doesn't depend on that
+             fetch at all — it shouldn't disappear because unrelated content
+             failed to load. -->
+        <a class="resume-download" id="resume-link" href="/resume" download>Download résumé (PDF)</a>
+
         <!-- The thesis, as a component. Timings fill in as you use the page;
              nothing here is a stand-in for a number we haven't measured. -->
         <section class="trace" aria-label="Where this site runs inference">

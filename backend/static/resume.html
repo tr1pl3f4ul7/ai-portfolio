@@ -1,0 +1,515 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Ljuben Vassilev Resume</title>
+  <style>
+    :root {
+      --bg: #FFFFFF;
+      --ink: #0C1013;
+      --ink-dim: #4A5A62;
+      --ink-faint: #7C8A90;
+      --line: #D7DEE1;
+      --line-soft: #E7ECEE;
+      --signal: #4FD1C5;
+      --signal-text: #0D7A70;
+
+      --font-mono: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, 'Cascadia Mono', monospace;
+      --font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: #E9EDEE;
+    }
+
+    body {
+      font-family: var(--font-sans);
+      color: var(--ink);
+      display: flex;
+      justify-content: center;
+      padding: 2.5rem 1rem;
+    }
+
+    .page {
+      background: var(--bg);
+      width: 100%;
+      max-width: 780px;
+      padding: 3.25rem 3.5rem 3rem;
+      box-shadow: 0 1px 3px rgba(12, 16, 19, 0.08), 0 12px 32px rgba(12, 16, 19, 0.10);
+    }
+
+    /* ---------- header ---------- */
+
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 1.5rem;
+      padding-bottom: 1.25rem;
+      border-bottom: 2px solid var(--signal);
+    }
+
+    .name {
+      font-family: var(--font-mono);
+      font-size: 2rem;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      margin: 0;
+      text-wrap: balance;
+    }
+
+    .role {
+      font-family: var(--font-sans);
+      font-size: 1.0625rem;
+      color: var(--ink-dim);
+      margin: 0.4rem 0 0;
+    }
+
+    .contact {
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      color: var(--ink-dim);
+      text-align: right;
+      line-height: 1.65;
+      white-space: nowrap;
+    }
+
+    .contact a { color: var(--signal-text); text-decoration: none; }
+    .contact a:hover { text-decoration: underline; }
+
+    /* ---------- section structure ---------- */
+
+    section { margin-top: 1.9rem; }
+
+    .label {
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--signal-text);
+      margin: 0 0 0.7rem;
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+    }
+
+    .label::after {
+      content: "";
+      flex: 1;
+      height: 1px;
+      background: var(--line);
+    }
+
+    .summary {
+      font-size: 0.96rem;
+      line-height: 1.6;
+      color: var(--ink);
+      max-width: 68ch;
+      margin: 0;
+    }
+
+    /* ---------- skills ---------- */
+
+    .skills-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.9rem 1.75rem;
+    }
+
+    .skill-group dt {
+      font-family: var(--font-mono);
+      font-size: 0.74rem;
+      font-weight: 600;
+      color: var(--ink);
+      margin-bottom: 0.3rem;
+    }
+
+    .skill-group dd {
+      margin: 0;
+      font-size: 0.86rem;
+      line-height: 1.5;
+      color: var(--ink-dim);
+    }
+
+    /* ---------- experience ---------- */
+
+    .job {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      column-gap: 1rem;
+      align-items: baseline;
+      margin-bottom: 0.15rem;
+    }
+
+    .job + .job-body { margin-top: 0; }
+
+    .job-title {
+      font-size: 0.98rem;
+      font-weight: 600;
+      color: var(--ink);
+    }
+
+    .job-org { font-weight: 400; color: var(--ink-dim); }
+
+    .job-date {
+      font-family: var(--font-mono);
+      font-variant-numeric: tabular-nums;
+      font-size: 0.76rem;
+      color: var(--ink-faint);
+      white-space: nowrap;
+    }
+
+    .job-meta {
+      font-size: 0.78rem;
+      color: var(--ink-faint);
+      margin: 0.15rem 0 0.45rem;
+    }
+
+    .job-body {
+      margin: 0 0 1.35rem;
+      padding-left: 1.05rem;
+      font-size: 0.87rem;
+      line-height: 1.55;
+      color: var(--ink);
+    }
+
+    .job-body li { margin-bottom: 0.3rem; }
+    .job-body li::marker { color: var(--signal-text); }
+
+    .concurrent-tag {
+      display: inline-block;
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--signal-text);
+      border: 1px solid var(--signal);
+      border-radius: 3px;
+      padding: 0.05rem 0.4rem;
+      margin-left: 0.5rem;
+      vertical-align: 2px;
+    }
+
+    /* earlier experience, condensed */
+
+    .earlier-item {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      column-gap: 1rem;
+      font-size: 0.85rem;
+      padding: 0.4rem 0;
+      border-bottom: 1px solid var(--line-soft);
+    }
+    .earlier-item:last-child { border-bottom: none; }
+
+    .earlier-role { color: var(--ink); font-weight: 600; }
+    .earlier-org { color: var(--ink-dim); font-weight: 400; }
+    .earlier-note { color: var(--ink-dim); font-size: 0.83rem; margin-top: 0.15rem; }
+
+    .earlier-date {
+      font-family: var(--font-mono);
+      font-variant-numeric: tabular-nums;
+      font-size: 0.74rem;
+      color: var(--ink-faint);
+      white-space: nowrap;
+    }
+
+    /* ---------- education ---------- */
+
+    .edu-entry { margin-bottom: 1.1rem; }
+    .edu-entry:last-child { margin-bottom: 0; }
+
+    .edu-title { font-size: 0.94rem; font-weight: 600; color: var(--ink); }
+
+    .edu-meta {
+      font-family: var(--font-mono);
+      font-size: 0.76rem;
+      color: var(--ink-faint);
+      margin: 0.15rem 0 0.35rem;
+    }
+
+    .edu-detail { font-size: 0.86rem; color: var(--ink-dim); line-height: 1.5; margin: 0; }
+
+    .cert-list {
+      margin-top: 1rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.45rem;
+    }
+
+    .cert-tag {
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      color: var(--ink-dim);
+      border: 1px solid var(--line);
+      border-radius: 3px;
+      padding: 0.22rem 0.55rem;
+    }
+
+    /* ---------- footer ---------- */
+
+    .footer {
+      margin-top: 2.2rem;
+      padding-top: 0.9rem;
+      border-top: 1px solid var(--line);
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      color: var(--ink-faint);
+      display: flex;
+      justify-content: space-between;
+    }
+
+    @media (max-width: 640px) {
+      .page { padding: 2rem 1.25rem; }
+      .header { flex-direction: column; }
+      .contact { text-align: left; }
+      .skills-grid { grid-template-columns: 1fr; }
+      .job, .earlier-item { grid-template-columns: 1fr; }
+      .job-date, .earlier-date { margin-top: 0.15rem; }
+    }
+
+    @media print {
+      @page { size: A4; margin: 0; }
+      body { background: #FFFFFF; padding: 0; }
+      .page { box-shadow: none; max-width: none; padding: 0.4in 0.55in; }
+      section { break-inside: avoid; }
+      .job-body, .edu-entry { break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="page">
+
+  <div class="header">
+    <div>
+      <p class="name">Ljuben Vassilev</p>
+      <p class="role">Software Engineer · Applied AI Systems Developer · Mobile Guru · Security Sentinel</p>
+    </div>
+    <div class="contact">
+      Brisbane, Australia · Remote only<br>
+      <a href="mailto:ljuben.vassilev@gmail.com">ljuben.vassilev@gmail.com</a><br>
+      +61 468 887 614<br>
+      <a href="https://ljubenvassilev.com">ljubenvassilev.com</a><br>
+      <a href="https://linkedin.com/in/lvassilev">linkedin.com/in/lvassilev</a>
+    </div>
+  </div>
+
+  <section>
+    <p class="label">Summary</p>
+    <p class="summary">
+      Software engineer specialising in applied AI systems, with ten years' production mobile
+      engineering behind it: Android in Java and Kotlin, then Flutter and Dart.
+      AI-assisted development (Claude Code, GitHub Copilot) is a daily production workflow, not an
+      experiment: builds and orchestrates agent tooling as well as using it. Independently designed,
+      built and deployed a four-layer AI inference system end to end: an on-device model, an edge
+      classifier, a Retrieval-Augmented Generation (RAG) chatbot, and cloud LLM generation,
+      including provisioning and hardening the server it runs on, and benchmarking candidate
+      embedding models rather than picking one by reputation. A Master's-level application security
+      background, three years as an Application Security Engineer, brings a DevSecOps mindset to
+      AI system design: untrusted input reaching a model, and the infrastructure it runs on, are
+      both treated as security problems from day one.
+    </p>
+  </section>
+
+  <section>
+    <p class="label">Core Skills</p>
+    <dl class="skills-grid">
+      <div class="skill-group">
+        <dt>AI-Assisted Engineering</dt>
+        <dd>Claude Code &amp; GitHub Copilot (daily, production, multi-model) · agent skill design ·
+          multi-agent orchestration · Agentic AI · Generative AI · Retrieval-Augmented Generation
+          (RAG) · Large Language Models (LLM) · Natural Language Processing (NLP) · vector search
+          &amp; embeddings · embedding model evaluation · prompt engineering</dd>
+      </div>
+      <div class="skill-group">
+        <dt>Mobile Development</dt>
+        <dd>Flutter &amp; Dart · cross-platform development · Kotlin · Java · Android platform
+          (10 years production) · Firebase · RxJava · Gradle</dd>
+      </div>
+      <div class="skill-group">
+        <dt>Cloud &amp; Infrastructure</dt>
+        <dd>Linux server administration · nginx, systemd, TLS, firewalls · AWS · Azure DevOps ·
+          CI/CD · DevOps · Git</dd>
+      </div>
+      <div class="skill-group">
+        <dt>Application Security</dt>
+        <dd>Penetration testing · vulnerability assessment · secure code review · OWASP Top 10 ·
+          security automation &amp; DevSecOps · CompTIA Security+ ce</dd>
+      </div>
+      <div class="skill-group">
+        <dt>Backend &amp; Web</dt>
+        <dd>Python (FastAPI) · RESTful APIs · C# / .NET · JavaScript / Node.js · SQL / SQLite</dd>
+      </div>
+      <div class="skill-group">
+        <dt>Leadership</dt>
+        <dd>Scrum Master · Agile/Scrum methodologies · retrospectives, planning &amp; refinement ·
+          cross-functional collaboration &amp; stakeholder management</dd>
+      </div>
+    </dl>
+  </section>
+
+  <section>
+    <p class="label">Experience</p>
+
+    <div class="job">
+      <span class="job-title">Software Engineer <span class="job-org">· AI Talent</span></span>
+      <span class="job-date">Apr 2026 – Present</span>
+    </div>
+    <p class="job-meta">Remote, Brisbane</p>
+    <ul class="job-body">
+      <li>Build and ship Flutter/Dart applications backed by Firebase in an Agile team.</li>
+      <li>Use Claude Code and GitHub Copilot daily, across multiple underlying models, as a
+        working method rather than an experiment, central to production delivery and code quality
+        review.</li>
+      <li>Independently designed, built and deployed a four-layer AI inference portfolio system
+        (on-device browser model, edge classifier, RAG chatbot, cloud API generation) on
+        self-provisioned and hardened infrastructure, with the architectural reasoning and rejected
+        alternatives published in a public decision log.</li>
+    </ul>
+
+    <div class="job">
+      <span class="job-title">Application Security Engineer <span class="job-org">· PropertyMe</span>
+        <span class="concurrent-tag">Concurrent</span></span>
+      <span class="job-date">Apr 2023 – Apr 2026</span>
+    </div>
+    <p class="job-meta">Remote, held concurrently with the Software Engineer role below</p>
+    <ul class="job-body">
+      <li>Designed and implemented application security controls and countermeasures against
+        real-world threats and vulnerabilities.</li>
+      <li>Conducted code reviews, vulnerability assessments and penetration testing across the
+        product.</li>
+      <li>Built automation that shifted security left, so secure code became the default rather
+        than something fixed after the fact.</li>
+    </ul>
+
+    <div class="job">
+      <span class="job-title">Software Engineer <span class="job-org">· PropertyMe</span></span>
+      <span class="job-date">Feb 2022 – Apr 2026</span>
+    </div>
+    <p class="job-meta">Remote</p>
+    <ul class="job-body">
+      <li>Built and maintained Flutter applications for PropertyMe's owner and tenant user bases,
+        the market-leading property management app for both audiences.</li>
+      <li>Worked in close collaboration with product and design on new features and improvements.</li>
+      <li>Acted as the driving force of automation across the team's tooling and process.</li>
+    </ul>
+
+    <div class="job">
+      <span class="job-title">Android Developer <span class="job-org">· Gruntify</span></span>
+      <span class="job-date">Apr 2020 – Jan 2022</span>
+    </div>
+    <p class="job-meta">Contract, hybrid, Australia</p>
+    <ul class="job-body">
+      <li>Built the primary Android interface for a GIS field-services platform, used by both
+        inspection teams and field workers for job requests, forms, media capture and live
+        location.</li>
+      <li>Kotlin, Java, augmented reality features, SQLite, RxJava, Firebase.</li>
+    </ul>
+  </section>
+
+  <section>
+    <p class="label">Earlier Experience</p>
+
+    <div class="earlier-item">
+      <div>
+        <span class="earlier-role">VR/AR Developer</span> <span class="earlier-org">· vreestory (freelance)</span>
+        <p class="earlier-note">Unity3D/C# advertising, government-commissioned education and
+          safety-training experiences for clients including OMV, Wincanton and Lions Gate
+          Entertainment. Ran alongside full-time roles below.</p>
+      </div>
+      <span class="earlier-date">2018 – 2020</span>
+    </div>
+
+    <div class="earlier-item">
+      <div>
+        <span class="earlier-role">Software Engineer</span> <span class="earlier-org">· Ozone.bg</span>
+        <p class="earlier-note">Digitised five warehouse processes onto Zebra TC8000 industrial
+          scanners running in kiosk mode. The warehouse's physical operations depended on that
+          software staying up. Also built the driver logistics application.</p>
+      </div>
+      <span class="earlier-date">Apr – Nov 2019</span>
+    </div>
+
+    <div class="earlier-item">
+      <div>
+        <span class="earlier-role">Software Engineer</span> <span class="earlier-org">· Musala Soft</span>
+        <p class="earlier-note">Montblanc Hub, the companion app for a smart writing hardware set.</p>
+      </div>
+      <span class="earlier-date">Nov 2018 – Apr 2019</span>
+    </div>
+
+    <div class="earlier-item">
+      <div>
+        <span class="earlier-role">Software Developer</span> <span class="earlier-org">· Software Group</span>
+        <p class="earlier-note">Banking software for regulated financial institutions, including
+          Banque Atlantique.</p>
+      </div>
+      <span class="earlier-date">Apr – Nov 2018</span>
+    </div>
+
+    <div class="earlier-item">
+      <div>
+        <span class="earlier-role">VR Developer</span> <span class="earlier-org">· SolvedOut</span>
+        <p class="earlier-note">Hellboy VR, a dual 8K stereoscopic cinematic VR experience for Lions
+          Gate Entertainment, delivered on Google Cardboard.</p>
+      </div>
+      <span class="earlier-date">Nov – Dec 2017</span>
+    </div>
+
+    <div class="earlier-item">
+      <div>
+        <span class="earlier-role">Android Developer</span> <span class="earlier-org">· TERACOMM, part of Allterco</span>
+        <p class="earlier-note">First engineering role. Consumer IoT (MyKi children's smartwatch),
+          a neonatal-monitoring proof of concept, and telecom/TV client projects.</p>
+      </div>
+      <span class="earlier-date">Nov 2016 – Oct 2017</span>
+    </div>
+  </section>
+
+  <section>
+    <p class="label">Education</p>
+
+    <div class="edu-entry">
+      <p class="edu-title">Master of Information Technology (Cyber Security and Network Security)</p>
+      <p class="edu-meta">Charles Sturt University, Australia · 2021 – 2023 · Distinction average (6.25 / 7)</p>
+      <p class="edu-detail">Academic Achievement Award (2021) · Executive Dean's Award (2022) ·
+        ranked top 1% worldwide on TryHackMe during study. Completed while working full time.</p>
+    </div>
+
+    <div class="edu-entry">
+      <p class="edu-title">Master's Degree in Finance</p>
+      <p class="edu-meta">New Bulgarian University · 2006 – 2016</p>
+    </div>
+
+    <div class="edu-entry">
+      <p class="edu-title">IT Talents Training Camp</p>
+      <p class="edu-meta">Software engineering bootcamp, Bulgaria</p>
+      <p class="edu-detail">Entry point into software engineering, leading directly to a first
+        Android Developer role.</p>
+    </div>
+
+    <div class="cert-list">
+      <span class="cert-tag">CompTIA Security+ ce</span>
+      <span class="cert-tag">Google Cybersecurity Certificate</span>
+      <span class="cert-tag">Career Essentials in Generative AI (Microsoft/LinkedIn)</span>
+      <span class="cert-tag">Microsoft SC-200 Security Operations Analyst</span>
+      <span class="cert-tag">Google Cybersecurity Specialization (8 courses)</span>
+      <span class="cert-tag">67 LinkedIn Learning courses</span>
+    </div>
+  </section>
+
+  <div class="footer">
+    <span>Ljuben Vassilev</span>
+    <span>References and verified employment/education history available on request</span>
+  </div>
+
+</div>
+</body>
+</html>

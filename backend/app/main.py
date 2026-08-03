@@ -10,6 +10,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from app import content, notify, observability, rag, ratelimit, submissions, triage
@@ -17,6 +18,7 @@ from app.config import (
     ALLOWED_ORIGINS,
     CONTACT_DAILY_LIMIT_PER_IP,
     CONTACT_DAILY_LIMIT_TOTAL,
+    RESUME_PDF_PATH,
 )
 from app.schemas import (
     AskContent,
@@ -146,6 +148,22 @@ def content_contact() -> ContactContent:
 def content_projects() -> ProjectsContent:
     """The project cards — web's grid and its on-device finder."""
     return content.PROJECTS
+
+
+@app.get("/resume")
+def resume() -> FileResponse:
+    """Serve the downloadable PDF resume.
+
+    A static file read, same reasoning as /content/*: no rate limit, since it
+    costs nothing to serve. `filename` gives the download a real name instead
+    of the source file's on-disk name, and makes the browser treat this as an
+    attachment rather than navigating to it inline.
+    """
+    return FileResponse(
+        RESUME_PDF_PATH,
+        media_type="application/pdf",
+        filename="Ljuben-Vassilev-Resume.pdf",
+    )
 
 
 @app.post(

@@ -2437,6 +2437,45 @@ account also generated a free public status page: <https://stats.uptimerobot.com
 
 ---
 
+## 66. Resume PDF served by the backend, source committed alongside it
+
+**Date:** 2026-08-03
+**Status:** accepted
+
+**Context:** LJ wanted a downloadable resume linked from the site, hosted somewhere it could be
+edited later without redeploying the whole static site build.
+
+**Decision:** The resume's source lives at `backend/static/resume.html` — a standalone document
+reusing the site's own ink/signal colour tokens rather than a new palette. `backend/static/resume.pdf`
+is rendered from it by hand (`msedge --headless --print-to-pdf`) and committed alongside the source,
+the same source-plus-generated-artefact pattern as `design/tokens.json` → `web/src/styles/tokens.css`.
+`GET /resume` on the FastAPI backend serves the PDF via `FileResponse` with
+`filename="Ljuben-Vassilev-Resume.pdf"`, which sets `Content-Disposition: attachment` so the browser
+downloads rather than navigates. `web/index.html` carries a `Download résumé (PDF)` link whose `href`
+is set at runtime to `${API_BASE_URL}/resume` (`src/main.ts`), the same pattern every other backend
+call in `web/` already uses.
+
+**Rejected:**
+- *Hosting the PDF as a static asset in `web/` instead.* Would need to be duplicated into the
+  Cloudflare Pages build and kept in sync by hand on every edit; the backend already deploys
+  independently and already serves everything else that isn't page copy.
+- *An automated HTML→PDF pipeline in CI.* No CI step exists for it yet and the resume changes
+  rarely — regenerating one PDF by hand when it's edited is simpler than standing up a headless
+  Chromium job for a file that gets touched a few times a year (Principle 2).
+- *Rate-limiting `/resume`.* It's a static read with no per-request cost, the same reasoning
+  already applied to `/content/*`.
+
+**Consequences:** Editing the resume is: edit `backend/static/resume.html`, re-run the print-to-pdf
+command, commit both files, deploy the backend. The PDF is a binary committed to the repo — small
+(~100 KB) and infrequent enough that this doesn't meaningfully bloat history the way `vectors.db`
+would have (decision 10 keeps that one gitignored instead, for contrast). The link is placed as a
+sibling of `.hero-intro` in `index.html` rather than inside it, specifically so it survives
+`showContentLoadFailure` in `main.ts` — that handler wipes `.hero-intro` if `GET /content/profile`
+fails, and the resume link doesn't depend on that fetch at all, so it shouldn't disappear because of
+an unrelated failure. Found by testing the failure path directly rather than assumed.
+
+---
+
 ## Open decisions
 
 Not yet decided. Each will get a full entry when resolved.

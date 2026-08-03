@@ -10,6 +10,7 @@ import { initAnalytics, track } from "./analytics";
 import { getAskContent, getBrowserContent, getContactContent, getProfile, getProjects } from "./api";
 import { mountChat } from "./chat";
 import { mountContact } from "./contact";
+import { API_BASE_URL } from "./config";
 import { mountMotion } from "./motion";
 import { initSentry, reportError } from "./observability";
 import { mountProjectFinder } from "./project-finder";
@@ -60,6 +61,15 @@ function recordRoundTrip(elapsedMs: number): void {
 function recordOnDevice(elapsedMs: number): void {
   record(["browser"], elapsedMs);
   track("project finder used");
+}
+
+// The link ships with a same-origin placeholder href in index.html so it still
+// works if this never runs; here it's pointed at the real backend origin, the
+// same way every fetch() in api.ts is.
+const resumeLink = document.querySelector<HTMLAnchorElement>("#resume-link");
+if (resumeLink) {
+  resumeLink.href = `${API_BASE_URL}/resume`;
+  resumeLink.addEventListener("click", () => track("resume downloaded"));
 }
 
 mountMotion();
