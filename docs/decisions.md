@@ -2466,7 +2466,13 @@ call in `web/` already uses.
   already applied to `/content/*`.
 
 **Consequences:** Editing the resume is: edit `backend/static/resume.html`, re-run the print-to-pdf
-command, commit both files, deploy the backend. The PDF is a binary committed to the repo — small
+command below, commit both files, deploy the backend.
+
+```
+msedge --headless --disable-gpu --no-pdf-header-footer --print-to-pdf=backend/static/resume.pdf backend/static/resume.html
+```
+
+(Chrome works identically in place of `msedge` if that's what's installed.) The PDF is a binary committed to the repo — small
 (~100 KB) and infrequent enough that this doesn't meaningfully bloat history the way `vectors.db`
 would have (decision 10 keeps that one gitignored instead, for contrast). The link is placed as a
 sibling of `.hero-intro` in `index.html` rather than inside it, specifically so it survives
