@@ -39,14 +39,14 @@ flowchart TB
     end
 
     subgraph CloudL["Cloud API layer"]
-        Claude["Anthropic Claude<br/>Haiku 4.5"]
+        Model["Z.AI GLM<br/>4.7-Flash"]
     end
 
     Visitor -->|"types a question,<br/>matched entirely locally"| PF
     Visitor -->|"asks the chatbot"| Nginx
     Visitor -->|"submits the contact form"| Worker
     Worker -->|"clean submissions only"| Nginx
-    Backend -->|"chat generation,<br/>contact triage"| Claude
+    Backend -->|"chat generation,<br/>contact triage"| Model
 ```
 
 Four boxes, four different reasons to be there. The rest of this document is that reasoning,
@@ -96,7 +96,7 @@ Every contact-form submission is validated cheaply first (name/email/message sha
 then classified by a small model running on **Cloudflare Workers AI** — `@cf/meta/llama-3.1-8b-fast-v2`
 — as either a genuine enquiry or spam. A submission classified as spam gets a realistic-looking
 response and goes no further; a tool sending automated spam has no way to tell it was filtered. A
-clean submission is forwarded, unchanged, to the backend for the real work: Claude reads it,
+clean submission is forwarded, unchanged, to the backend for the real work: the model reads it,
 classifies its intent, and drafts a reply for LJ to review.
 
 **The fail-open rule, and why it's not just a nice idea.** If the Workers AI call itself fails for
@@ -122,8 +122,8 @@ concrete argument for the rule, not just its motivation.
 **Files:** `backend/app/rag.py`, `chunking.py`, `embeddings.py`, `store.py`
 
 The `/chat` endpoint answers questions about LJ's actual background, grounded in real source
-content rather than whatever Claude might otherwise assume. The pipeline has three separate
-stages — embed the question, retrieve the closest source material, then ask Claude to answer using
+content rather than whatever the model might otherwise assume. The pipeline has three separate
+stages — embed the question, retrieve the closest source material, then ask the model to answer using
 only that material — and each stage is a distinct, independently testable function.
 
 **Embedding and retrieval.** Source content (resume, project write-ups, FAQ) is split into one
@@ -138,7 +138,7 @@ closest-matching chunks; four was tried first, but measurement showed the genuin
 occasionally ranking fifth, narrowly losing to an unrelated FAQ entry.
 
 **Answering.** The six retrieved chunks are wrapped in an explicit `<context>` block together with
-the visitor's question, and handed to Claude with a system prompt that does four things: answer
+the visitor's question, and handed to the model with a system prompt that does four things: answer
 only from the given context, speak in first person as LJ, say plainly when the context doesn't
 cover something rather than guessing, and — importantly — treat the retrieved context and the
 visitor's question as *data*, never as instructions to follow. That last rule matters because both
@@ -154,7 +154,7 @@ FastAPI process itself. nginx terminates TLS and reverse-proxies to a single uvi
 counters live in that one process's memory; a second worker would silently let submissions bypass
 half the daily limit by landing on the other process.
 
-Contact-form submissions get a separate, higher-stakes Claude call (`backend/app/triage.py`):
+Contact-form submissions get a separate, higher-stakes model call (`backend/app/triage.py`):
 classify what the sender wants, judge priority, write a short summary for LJ, and draft — never
 send — a reply in LJ's voice. This prompt is treated as the riskiest one in the codebase, because
 the entire input is attacker-controlled text arriving through a public form; its system prompt
@@ -165,14 +165,25 @@ spam signal to flag, not as something to obey.
 
 ## Cloud API — where the actual language generation happens
 
-Both backend calls — chat generation and contact triage — use **Claude Haiku 4.5**. Neither task
-requires open-ended reasoning: one is summarising already-retrieved context into an answer, the
-other is classifying and drafting from a single message. Haiku's cost and speed profile fits that
-shape well (decision 30); if response quality ever falls short, the model string is a one-line
-config change to something larger; the code already isolates it there for exactly that reason.
+Both backend calls — chat generation and contact triage — use **Z.AI GLM-4.7-Flash**, which is
+free. Neither task requires open-ended reasoning: one is summarising already-retrieved context into
+an answer, the other is classifying and drafting from a single message.
+
+Free on Z.AI means *shared best-effort capacity*, and that shapes the code more than the model
+choice does. Measured, roughly three calls in four return "service temporarily overloaded" — but a
+rejection comes back in ~0.4s where an answer takes 1-2s, so retrying is nearly free. `app/llm.py`
+spends those cheap failures on retries under two different budgets: about 15 seconds for `/chat`,
+where a visitor is watching, and up to two minutes for triage, which runs in a background task
+where nobody is. That asymmetry is why `/contact` acknowledges the sender *before* triage runs.
+
+One further wrinkle worth recording: GLM-4.7-Flash is a reasoning model, and its hidden reasoning
+is billed against `max_tokens` before any answer is emitted — 96 reasoning tokens for a 4-token
+reply, in one measurement. Left enabled it silently truncates long answers and half-writes triage
+JSON, so `thinking` is explicitly disabled. If quality or availability ever falls short,
+GLM-5.3-Flash is a one-line config change (decision 67).
 
 The edge layer's spam classifier is a separate, smaller model running on Cloudflare's own
-infrastructure (Workers AI), not Claude — spam/clean is a much simpler decision, and keeping it on
+infrastructure (Workers AI) — spam/clean is a much simpler decision, and keeping it on
 Cloudflare's edge network means it runs before a submission ever reaches the Oracle VM at all.
 
 ---
@@ -180,13 +191,13 @@ Cloudflare's edge network means it runs before a submission ever reaches the Ora
 ## Two requests, start to finish
 
 **Asking the chatbot a question:** browser → `api.ljubenvassilev.com` (nginx, TLS) → FastAPI →
-embed the question → retrieve six chunks from `sqlite-vec` → Claude Haiku 4.5 → answer streams
+embed the question → retrieve six chunks from `sqlite-vec` → GLM-4.7-Flash → answer streams
 back to the browser. Nothing here touches the edge layer at all.
 
 **Submitting the contact form:** browser → `contact.ljubenvassilev.com` (the Cloudflare Worker) →
 cheap validation → Workers AI spam classification → if clean, forwarded unchanged to the backend's
-`/contact` → Claude Haiku 4.5 triages it (category, priority, summary, draft reply) → LJ is
-notified. Splitting the domain this way (decision 48) is what makes the diagram's routing exact:
+`/contact` → stored immediately and acknowledged, then a background task has GLM-4.7-Flash triage
+it (category, priority, summary, draft reply) → LJ is notified. Splitting the domain this way (decision 48) is what makes the diagram's routing exact:
 chat never passes through the Worker, and the contact form never talks to the backend directly.
 
 ---

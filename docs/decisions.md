@@ -2482,6 +2482,154 @@ an unrelated failure. Found by testing the failure path directly rather than ass
 
 ---
 
+## 67. Z.AI GLM-4.7-Flash replaces the Anthropic Claude API as the cloud inference layer
+
+**Date:** 2026-09-01
+**Status:** accepted — supersedes decision 30's model choice; the per-IP half of decision 31's rate
+limiting is removed here too
+
+**Context:** LJ asked to move everything depending on Claude onto a free service. The dependency was
+narrower than it looked: two call sites, both in `backend/`, both behind one client factory. The
+edge layer never used Claude — `edge/src/classify.ts` already runs `@cf/meta/llama-3.1-8b-fast-v2`
+on Workers AI — so this touches only the **Cloud API** row of the four-layer table.
+
+Every free tier on the market was checked against the provider's own documentation, because the
+aggregator blogs are stale in both directions:
+
+| Provider | What its own docs say | Outcome |
+|---|---|---|
+| **Z.AI** | GLM-4.7-Flash / 4.5-Flash priced at $0, permanently | **chosen** |
+| Groq | 10 RPM / **3.6K tokens per day**; free models are two TTS models | unusable |
+| Cerebras | no-card tier ended Aug 2026; $5 credits, card required | not free |
+| SambaNova | **20 requests per day**; free tier not for production | unusable |
+| GitHub Models | free access is prototyping; production needs paid opt-in | prohibited |
+| Mistral | "Experiment" tier — evaluation, not production | prohibited |
+| OVHcloud | "Free AI API" is a $200 voucher, 1 month, card required | not free |
+| Scaleway | 1M tokens once, then pay-as-you-go | runs out |
+| Kimi (Moonshot) | $1 minimum recharge; usage billed against balance; **Tier 0 concurrency 1, 3 RPM** | not free |
+| Qwen (Alibaba) | 1M tokens/model, **90 days**, Singapore endpoint only | expires |
+| DeepSeek | one-time 5M grant, then paid | expires |
+| NVIDIA NIM | ~1,000 credits, not for throughput | expires |
+| OpenRouter `:free` | 50 requests/day, roster changes without notice | unusable |
+
+**Decision:** Z.AI GLM-4.7-Flash for both `/chat` and contact triage, over plain REST.
+
+Two things decided it beyond price.
+
+*Privacy.* This mattered more than throughput, because `/contact` sends a stranger's name, email
+and message to be classified. Google Gemini was the early favourite and was rejected on its own
+terms, which say Google uses free-tier content to train, that **human reviewers may read API input
+and output**, and — plainly — *"Do not submit sensitive, confidential, or personal information to
+the Unpaid Services."* Australia is outside the EEA/UK/Swiss carve-out. Kimi's terms are worse
+still: training with no in-product opt-out, and a perpetual sublicensable licence to user content.
+Z.AI's privacy policy is the strongest of the group and draws **no distinction between free and
+paid**: *"The Company do not store any of the content the Customer or its End Users provide or
+generate while using our Services"* — processed in real time, not saved. The international platform
+runs through a Singapore entity and processes there by default.
+
+*Keeping four layers.* Cloudflare Workers AI was the other genuinely-free, production-permitted,
+no-training option, and on the numbers it is fine — the contact-form spam filter costs about 1
+neuron per submission against a 10,000/day pool, so the "it would compete with the edge Worker"
+objection does not survive arithmetic. It was passed over because it merges Edge and Cloud into one
+vendor, and running inference in four genuinely different places is the point of this repo.
+
+**Rejected:**
+- *Google Gemini.* Best quality and a real free tier, disqualified by the terms above for the one
+  endpoint that handles other people's personal data.
+- *Cloudflare Workers AI.* Technically the strongest runner-up; costs the four-vendor architecture.
+- *Kimi Tier 1 ($10).* 200 RPM and 50 concurrency for real money, with the worst terms of the set.
+- *GLM-5.3-Flash.* Kept as the escape hatch, not the default: 50 concurrency, fast and reliable, at
+  $0.15/$0.50 per million tokens. It needs a positive balance — without one it answers
+  `1113 Insufficient balance`, which is exactly what a live check returned.
+- *Self-hosting on the VM.* Best privacy story available, but 2 OCPU / 12 GB with no GPU against
+  decision 1's memory ceiling, and it merges Server and Cloud.
+
+**Consequences — the measured ones.** These came from running against the live API, not from docs,
+and every one of them changed the code:
+
+- **Free means shared best-effort capacity.** Eight sequential calls to GLM-4.7-Flash returned two
+  answers and six `429 / code 1305 "service temporarily overloaded"`. GLM-4.5-Flash returned 8/8 —
+  but took **36-65 seconds per call**, against nginx's 60s `proxy_read_timeout`. Neither model is
+  simply usable as-is.
+- **Retrying is the whole strategy, and it works because failure is cheap.** A rejection returns in
+  ~0.4s where an answer takes 1-2s. `app/llm.py` therefore spends attempts freely under two
+  budgets: `FAST` (14 attempts / 15s) for `/chat`, `PATIENT` (40 attempts / 120s) for triage. The
+  15s figure is not a guess — successful calls measured 1.4, 2.5, 3.5, 6.8 and 10.1 seconds, and an
+  earlier 10s deadline was amputating exactly that tail. Capacity swings widely: the same profile
+  measured 5/5 one minute and 2/4 the next.
+- **Triage moved off the request path.** A budget that generous is only defensible when nobody is
+  waiting, so `/contact` now stores the submission, returns the reference, and runs triage and
+  notification in a `BackgroundTasks` callback. The store-first guarantee is unchanged, and the
+  failure mode is the same recoverable `notified = 0` row it always was.
+- **GLM-4.7-Flash is a reasoning model, and that nearly shipped as a bug.** Its hidden
+  `reasoning_content` is billed against `max_tokens` *before* any answer is emitted: "Say ready."
+  spent 96 reasoning tokens on a 4-token reply, and at `max_tokens=16` returned
+  `finish_reason="length"` with content completely empty. Left on it would truncate long answers
+  and half-write triage JSON — intermittently, on exactly the longest questions. `thinking` is
+  explicitly disabled in every request; that took the same call to 0 reasoning tokens.
+  `reasoning_effort: "minimal"` is not the lever — it still spent 82.
+- **Structured output got weaker.** `messages.parse` enforced `TriageResult`'s schema at the API.
+  Z.AI offers `response_format: {"type": "json_object"}` — syntactically valid JSON, no schema — so
+  the schema is now written into the system prompt and the reply is validated with pydantic. A
+  mismatched shape went from a state the API would not produce to one that happens and is caught.
+  `TriageUnavailable` is unchanged at the boundary, so callers and their tests were untouched.
+  Whether a real model actually honours the schema is now an open question, which is what
+  `tests/test_live.py` exists to answer.
+- **The validation failure is raised `from None`,** deliberately. A pydantic `ValidationError`
+  quotes the input that failed, and that input derives from a stranger's message; chaining it would
+  carry the submission into every traceback and eventually into Sentry, which
+  `app/observability.py` goes to some length to prevent everywhere else.
+- **The dependency set shrank.** `anthropic==0.119.0` is gone; `httpx==0.28.1` moved from
+  requirements-dev to runtime. Z.AI is a bearer token and JSON, so there is no SDK.
+- **Live tests are now allowed, and marked.** The old blanket ban existed because calls cost money.
+  They no longer do, so `pytest -m live` runs a handful of contract tests — is the model ID real,
+  is auth accepted, is `json_object` honoured, does `TriageResult` round-trip. `pytest.ini` defaults
+  to `-m "not live"`, and CI deliberately does not run them: one in-flight request per account means
+  two concurrent jobs would fail each other for reasons unrelated to the change under test. Nothing
+  live asserts on generated prose.
+- **`ANTHROPIC_API_KEY` must be revoked, not merely removed.** It still exists as a GitHub Actions
+  secret, in `/etc/ai-portfolio.env` on the VM, and in a local `.env`. Deleting the references does
+  not invalidate it (Principle 6).
+
+---
+
+## 68. Per-IP rate limiting removed; `/contact` abuse control moves to the edge
+
+**Date:** 2026-09-01
+**Status:** accepted — supersedes the per-IP half of decision 31
+
+**Context:** `/chat` and `/contact` each carried two daily ceilings: one per client IP, one across
+everyone. Both existed because every request spent money at the Claude API — the total was the
+spend cap, and the per-IP limit was what stopped one visitor draining it. Decision 67 made
+inference free and unmetered by volume, so the per-IP counter was guarding a budget that no longer
+exists.
+
+**Decision:** The per-IP ceiling is removed from both endpoints. The daily totals stay.
+`ratelimit.client_ip()` went with it, along with its `X-Forwarded-For` handling and tests — dead
+code once nothing identifies a caller.
+
+The totals are kept for a reason that has nothing to do with inference cost: `/contact` sends mail
+through Resend, whose free tier has its own hard ceiling, and `/chat` still runs an embedding model
+on a 12 GB box.
+
+**Rejected:**
+- *Browser fingerprinting,* which LJ raised. It is tracking: under GDPR/ePrivacy it needs consent
+  exactly as a cookie does, Safari, Firefox and Brave actively defeat it, and it would sit badly in
+  a codebase where `observability.py` scrubs IPs and bodies and where decision 67 turned down a
+  better model over visitor privacy.
+- *Hashing the IP with a rotating salt.* Still IP-based, and LJ ruled that out explicitly.
+- *Keeping the per-IP counter anyway.* Would have contradicted the instruction for no benefit on
+  `/chat`, where the resource being protected is now free.
+
+**Consequences:** One caller can now spend a whole daily total alone. On `/chat` that is a
+self-limiting nuisance. On `/contact` it is real — a script can exhaust the 50/day allowance in a
+minute and lock out every genuine enquiry until the next UTC midnight. That gap is accepted only
+because it is temporary: Cloudflare Turnstile goes in front of the contact form next, which stops
+automated submissions at the edge before they reach the VM at all, without cookies, fingerprinting
+or personal data. Until it lands, `/contact` is protected by a total and nothing else.
+
+---
+
 ## Open decisions
 
 Not yet decided. Each will get a full entry when resolved.

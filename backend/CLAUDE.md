@@ -4,9 +4,10 @@ The **server** inference layer. Runs on the Oracle Ampere A1 VM behind nginx, ma
 
 Two jobs:
 1. **RAG chatbot** (`/chat`) — embed the query, retrieve top-k chunks from a local vector store,
-   call Claude with that context, return a grounded answer.
-2. **Contact triage** (`/contact`) — hand a submission to Claude for intent classification, field
-   extraction, and a draft reply; store it; notify LJ.
+   call the model with that context, return a grounded answer.
+2. **Contact triage** (`/contact`) — store the submission and acknowledge it immediately, then in a
+   background task hand it to the model for intent classification, field extraction and a draft
+   reply; notify LJ.
 
 ## Stack
 
@@ -15,7 +16,7 @@ Two jobs:
 | Framework | FastAPI | **Python 3.11 locally, 3.12 on the VM and in CI** — see below |
 | Vector store | `sqlite-vec` | Embedded — no separate service to run or monitor |
 | Embeddings | `thenlper/gte-small` | 384-dim, 512-token window, CPU-only. Chosen by benchmark over the plan's `all-MiniLM-L6-v2` — decision 28 |
-| LLM | Anthropic Claude API | `claude-haiku-4-5` for both `/chat` and triage — decision 30. Sonnet 5 if quality demands it |
+| LLM | Z.AI GLM API | `glm-4.7-flash` for both `/chat` and triage — free, decision 67. `glm-5.3-flash` (paid, cents/month) if quality or availability demands it |
 | Errors | `sentry-sdk` FastAPI integration | Phase 2.5 |
 | Tests | `pytest` + `TestClient` | |
 | Process | systemd unit → uvicorn | See `infra/systemd/` |
@@ -30,7 +31,8 @@ backend/
 │   ├── main.py        # FastAPI app, route registration, Sentry init
 │   ├── config.py      # Settings from env vars — the ONLY place os.environ is read
 │   ├── schemas.py     # Pydantic request/response models, shared with web
-│   ├── rag.py         # embed → retrieve → build prompt → call Claude
+│   ├── llm.py         # the only thing that talks to Z.AI: retries, error mapping
+│   ├── rag.py         # embed → retrieve → build prompt → call the model
 │   ├── triage.py      # contact classification/extraction/draft reply
 │   └── ingest.py      # chunk + embed source content into the vector store  (Step 2.2)
 ├── data/              # RAG source content (resume, project write-ups) — committed
@@ -45,15 +47,16 @@ embedded index built from it is a build artefact — regenerate it, don't commit
 
 - **All config through `config.py`.** Read `os.environ` in exactly one place. Never inline an
   env var lookup in a route handler.
-- **Never live-call the Claude API in automated tests.** Mock the client. One manual smoke test
-  against the real API is fine — run it by hand, keep it out of CI.
+- **Model calls are mocked by default.** `pytest.ini` sets `-m "not live"`, so the everyday run is
+  hermetic and needs no key. Live contract tests exist behind `pytest -m live` and must never run
+  in parallel — GLM-4.7-Flash permits one in-flight request per account. Keep them out of CI.
 - **Load the embedding model once at startup**, not per request. It's ~90 MB resident; the VM
   has 12 GB shared with nginx and the OS.
 - **Every endpoint gets a Pydantic response model.** The web client depends on these shapes —
   they're the contract.
 - `/health` must stay dependency-free and fast. An uptime monitor hits it every few minutes and
-  the deploy smoke test gates on it. Don't make it call Claude or touch the vector store.
-- Secrets come from the environment. `ANTHROPIC_API_KEY` never appears in source, tests,
+  the deploy smoke test gates on it. Don't make it call the model or touch the vector store.
+- Secrets come from the environment. `ZAI_API_KEY` never appears in source, tests,
   fixtures, or log output.
 
 ## Commands
