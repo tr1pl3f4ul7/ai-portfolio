@@ -41,25 +41,57 @@ jobs:
         run: npx wrangler deploy
 
       - name: Post-deploy smoke test
-        # Spam only, deliberately (decision 55) — a clean payload would really
-        # forward to the backend: a real Claude triage call, a stored
-        # submission, and a real email to LJ, on every single edge deploy.
-        # This proves the Worker is live, deployed, and responding correctly
-        # without ever touching the backend; it does not re-verify the
-        # forward-to-backend path itself, which Step 5.2 already confirmed
-        # works and which nothing in edge/ has changed since.
+        # Two assertions, both against the Worker alone — nothing here reaches
+        # the VM, spends inference, or emails LJ (decision 55's constraint,
+        # still honoured).
+        #
+        # 1. GET /health proves the Worker is deployed and serving. It is
+        #    dependency-free by design and answers before any other logic.
+        # 2. A POST with no Turnstile token must be refused with 403. This is
+        #    the load-bearing one, and it replaces the old assertion that a spam
+        #    payload came back `"received":true` — which decision 69 turned into
+        #    a guaranteed failure, since a tokenless request no longer gets that
+        #    far.
+        #
+        # Asserting the 403 is worth more than the receipt ever was: it proves
+        # verification is actually ON. If TURNSTILE_SECRET_KEY were missing,
+        # turnstile.ts returns `unverifiable` and fails open by design, the
+        # request would sail past and get a 200 — so this is what catches an
+        # unprotected contact form, which a liveness check alone never would.
+        #
+        # The payload stays spam so that even in that fail-open case the
+        # classifier drops it and nothing is forwarded or emailed.
         #
         # A retry loop, not curl's own --retry — that only retries a fixed set
         # of standard HTTP codes (408/429/500/502/503/504), not Cloudflare's
         # own 522/524 a freshly-touched custom domain can transiently return.
         run: |
-          payload='{"name":"SEO Expert","email":"promo@cheap-backlinks-seo.biz","message":"BUY NOW!!! Get 10000 backlinks for only $9.99! CASINO CRYPTO FOREX guaranteed profits act now!!!"}'
           for i in $(seq 1 12); do
-            body=$(curl -fsS --max-time 10 -X POST https://contact.ljubenvassilev.com \
-              -H "Content-Type: application/json" -d "${payload}" 2>/dev/null) && \
-              echo "${body}" | grep -q '"received":true' && { echo "${body}"; exit 0; }
+            if curl -fsS --max-time 10 https://contact.ljubenvassilev.com/health 2>/dev/null \
+              | grep -q '"status":"ok"'; then
+              echo "Worker is live."
+              break
+            fi
+            if [ "${i}" -eq 12 ]; then
+              echo "Worker did not come up in time" >&2
+              exit 1
+            fi
             echo "Attempt ${i}/12: not ready yet, retrying in 10s..."
             sleep 10
           done
-          echo "Worker did not respond correctly in time" >&2
+
+          payload='{"name":"SEO Expert","email":"promo@cheap-backlinks-seo.biz","message":"BUY NOW!!! Get 10000 backlinks for only $9.99! CASINO CRYPTO FOREX guaranteed profits act now!!!"}'
+          code=$(curl -sS --max-time 10 -o /dev/null -w '%{http_code}' \
+            -X POST https://contact.ljubenvassilev.com \
+            -H "Content-Type: application/json" -d "${payload}")
+          if [ "${code}" = "403" ]; then
+            echo "Turnstile is enforcing: a tokenless submission was refused."
+            exit 0
+          fi
+          echo "Expected 403 for a submission with no Turnstile token, got ${code}." >&2
+          if [ "${code}" = "200" ]; then
+            echo "A 200 means the Worker forwarded an unverified submission — the" >&2
+            echo "contact form is unprotected. Check TURNSTILE_SECRET_KEY is set:" >&2
+            echo "  cd edge && npx wrangler secret put TURNSTILE_SECRET_KEY" >&2
+          fi
           exit 1
