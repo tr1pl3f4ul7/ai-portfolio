@@ -48,7 +48,7 @@ function record(layers: string[], elapsedMs: number): void {
 /**
  * Show a real measurement on the layers that just did the work.
  *
- * The chat exercises retrieval on the VM and generation at the Claude API, so
+ * The chat exercises retrieval on the VM and generation at the hosted model API, so
  * those two rows — and only those two — get the number. The edge row stays as
  * it is until something actually runs there.
  */

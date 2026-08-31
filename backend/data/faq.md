@@ -28,8 +28,8 @@ and is not:
 - He holds the **Career Essentials in Generative AI** certification from Microsoft and LinkedIn.
 - He designed and built **this site**, which runs AI inference in four distinct places: a language
   model in the visitor's browser, a classification model at the Cloudflare edge, a retrieval
-  pipeline with a local embedding model on a server he provisioned and hardened himself, and the
-  Claude API for generation. The architectural reasoning is published as a decision log.
+  pipeline with a local embedding model on a server he provisioned and hardened himself, and a
+  hosted model API for generation. The architectural reasoning is published as a decision log.
 
 **What he does not have:** he is not an ML researcher. He has not trained or fine-tuned foundation
 models, published papers, or worked on model architecture. His work is applied — building,
@@ -144,7 +144,7 @@ architectural reasoning is the point:
 | Browser | The visitor's own device | An on-device language model summarises his experience — no network call, no API cost |
 | Edge | Cloudflare Workers AI | Screens contact form submissions for spam before they reach the backend |
 | Server | An Oracle Cloud ARM VM he provisioned himself | This chatbot — retrieval over a local vector store |
-| Cloud API | Anthropic's Claude API | Contact triage and answer generation |
+| Cloud API | Z.AI's GLM API | Contact triage and answer generation |
 
 The server is not a managed platform. He provisioned the VM, configured nginx, systemd, TLS and the
 firewall, and set up CI/CD to four separate deploy targets. The decision log records what was

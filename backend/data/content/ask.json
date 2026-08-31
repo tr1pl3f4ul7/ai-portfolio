@@ -1,7 +1,7 @@
 {
   "label": "ask",
   "heading": "two of those layers, right now",
-  "description": "This retrieves from a vector store on my own server, then asks Claude to answer only from what it found. It cites the sections it used, and shows you the real round trip.",
+  "description": "This retrieves from a vector store on my own server, then asks a hosted model to answer only from what it found. It cites the sections it used, and shows you the real round trip.",
   "suggestions": [
     "What's the hardest thing you've built?",
     "Do you have security experience?",

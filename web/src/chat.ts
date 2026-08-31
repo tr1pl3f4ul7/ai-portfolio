@@ -2,7 +2,7 @@
  * The chat widget — layers three and four of the architecture, live.
  *
  * A question goes to the VM, which embeds it, searches a local vector store,
- * and asks Claude to answer from what it retrieved. The widget shows the real
+ * and asks the hosted model to answer from what it retrieved. The widget shows the real
  * round-trip time and the sections the answer was grounded in, because that
  * evidence is the point of the page.
  *
@@ -69,7 +69,7 @@ function renderExchange(question: string): {
       pending.remove();
       node.append(el("p", "chat-answer", toPlainText(answer)));
       if (sources.length > 0) node.append(renderSources(sources));
-      // The measured round trip: the VM's retrieval plus the Claude call.
+      // The measured round trip: the VM's retrieval plus the model call.
       node.append(el("p", "chat-timing", `server + cloud · ${(elapsedMs / 1000).toFixed(2)}s`));
     },
     reject(message) {
