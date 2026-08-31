@@ -350,6 +350,34 @@ def test_chat_still_answers_when_nothing_is_retrieved(retrieval, fake_llm):
     assert response.json()["sources"] == []
 
 
+def test_a_busy_model_tier_says_it_is_worth_retrying(retrieval, fake_llm):
+    """Retry-After is what lets the web client offer a retry button and write
+    plain copy instead of echoing "the Z.AI API is rate limiting this service"
+    at a visitor who did not ask which vendor we use."""
+    retrieval()
+    fake_llm(zai_error(429))
+
+    response = client.post("/chat", json={"question": "Who does he work for?"})
+
+    assert response.status_code == 503
+    assert int(response.headers["retry-after"]) > 0
+
+
+def test_a_broken_deployment_does_not_pretend_retrying_will_help(retrieval, monkeypatch):
+    """A missing vector store will be just as missing on the second attempt.
+    The absence of the header is as meaningful as its presence."""
+
+    def boom(question, k=6):
+        raise rag.ChatUnavailable("vector store missing at /nope/vectors.db")
+
+    monkeypatch.setattr(rag, "retrieve", boom)
+
+    response = client.post("/chat", json={"question": "Who does he work for?"})
+
+    assert response.status_code == 503
+    assert "retry-after" not in response.headers
+
+
 def test_chat_returns_503_when_the_pipeline_is_unavailable(retrieval, monkeypatch):
     def boom(question, k=6):
         raise rag.ChatUnavailable("vector store missing at /nope/vectors.db")

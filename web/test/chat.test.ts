@@ -20,6 +20,7 @@ const { mountChat } = await import("../src/chat");
 let root: HTMLElement;
 
 const input = () => root.querySelector<HTMLInputElement>(".chat-input")!;
+const retryButton = () => root.querySelector<HTMLButtonElement>(".chat-retry");
 const form = () => root.querySelector<HTMLFormElement>(".chat-form")!;
 const send = () => root.querySelector<HTMLButtonElement>(".chat-send")!;
 const text = () => root.textContent ?? "";
@@ -233,5 +234,90 @@ describe("suggested prompts", () => {
 
     await vi.waitFor(() => expect(askQuestion).toHaveBeenCalled());
     expect(askQuestion.mock.calls[0]![0]).toBeTruthy();
+  });
+});
+
+
+describe("retrying a busy model tier", () => {
+  /** A 503 the backend marked transient with Retry-After. */
+  const busy = () => new ApiError("The model's busy — try again in a moment.", 503, 5);
+
+  /** A 503 with no Retry-After: broken, not busy. */
+  const broken = () => new ApiError("vector store missing at /opt/.../vectors.db", 503, null);
+
+  it("offers a retry when the failure is transient", async () => {
+    askQuestion.mockRejectedValue(busy());
+
+    await ask("Who does he work for?");
+
+    expect(retryButton()).toBeTruthy();
+    expect(text()).toContain("busy");
+  });
+
+  it("does not offer a retry when retrying could not help", async () => {
+    // A missing vector store will be just as missing on the second attempt. A
+    // button there would be a lie dressed as a courtesy.
+    askQuestion.mockRejectedValue(broken());
+
+    await ask("Who does he work for?");
+
+    expect(retryButton()).toBeNull();
+    expect(text()).toContain("vector store missing");
+  });
+
+  it("does not offer a retry on a daily limit", async () => {
+    askQuestion.mockRejectedValue(new ApiError("Daily limit reached.", 429, 3600));
+
+    await ask("Who does he work for?");
+
+    expect(retryButton()).toBeNull();
+  });
+
+  it("answers in place when the retry succeeds", async () => {
+    askQuestion.mockRejectedValueOnce(busy());
+    askQuestion.mockResolvedValueOnce({ answer: "He works at AI Talent.", sources: [] });
+
+    await ask("Who does he work for?");
+    retryButton()!.click();
+    await vi.waitFor(() => expect(text()).toContain("He works at AI Talent."));
+
+    // The error, the button and the spinner are all gone.
+    expect(retryButton()).toBeNull();
+    expect(root.querySelector(".chat-error")).toBeNull();
+    expect(root.querySelector(".chat-pending")).toBeNull();
+  });
+
+  it("re-asks the same question without the visitor retyping it", async () => {
+    askQuestion.mockRejectedValueOnce(busy());
+    askQuestion.mockResolvedValueOnce({ answer: "An answer.", sources: [] });
+
+    await ask("Who does he work for?");
+    retryButton()!.click();
+    await vi.waitFor(() => expect(askQuestion).toHaveBeenCalledTimes(2));
+
+    expect(askQuestion.mock.calls[1]![0]).toBe("Who does he work for?");
+  });
+
+  it("keeps the question in place rather than adding a second exchange", async () => {
+    // Re-asking as a new entry would read as though they had typed it twice.
+    askQuestion.mockRejectedValueOnce(busy());
+    askQuestion.mockResolvedValueOnce({ answer: "An answer.", sources: [] });
+
+    await ask("Who does he work for?");
+    retryButton()!.click();
+    await vi.waitFor(() => expect(text()).toContain("An answer."));
+
+    expect(root.querySelectorAll(".chat-exchange")).toHaveLength(1);
+    expect(root.querySelectorAll(".chat-question")).toHaveLength(1);
+  });
+
+  it("offers the retry again when the retry itself fails", async () => {
+    askQuestion.mockRejectedValue(busy());
+
+    await ask("Who does he work for?");
+    retryButton()!.click();
+    await vi.waitFor(() => expect(askQuestion).toHaveBeenCalledTimes(2));
+
+    await vi.waitFor(() => expect(retryButton()).toBeTruthy());
   });
 });

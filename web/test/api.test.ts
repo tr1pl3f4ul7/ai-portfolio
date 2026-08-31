@@ -189,7 +189,10 @@ describe("failures become readable messages", () => {
     await expect(askQuestion("hi")).rejects.toMatchObject({ retryAfterSeconds: 3600 });
   });
 
-  it("surfaces the backend's own detail on 503, which says what is down", async () => {
+  it("surfaces the backend's own detail on a 503 with no Retry-After", async () => {
+    // No Retry-After means genuinely broken, not busy. The backend's detail is
+    // the honest thing to show — "vector store missing" is at least a real
+    // answer to "why can't it answer me".
     fetchMock.mockResolvedValue(
       jsonResponse({ detail: "vector store missing at /opt/.../vectors.db" }, { status: 503 }),
     );
@@ -197,7 +200,42 @@ describe("failures become readable messages", () => {
     await expect(askQuestion("hi")).rejects.toMatchObject({
       status: 503,
       message: expect.stringContaining("vector store missing"),
+      retryable: false,
     });
+  });
+
+  it("never shows the upstream's own wording when the model tier is busy", async () => {
+    // The visitor was seeing "the Z.AI API is rate limiting this service":
+    // accurate, useless to them, and naming a vendor they did not ask about.
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify({ detail: "the Z.AI API is rate limiting this service" }), {
+        status: 503,
+        headers: { "Content-Type": "application/json", "Retry-After": "5" },
+      }),
+    );
+
+    const error = (await askQuestion("hi").catch((e: unknown) => e)) as ApiError;
+
+    expect(error.message).not.toMatch(/Z\.AI/i);
+    expect(error.message).not.toMatch(/rate limiting/i);
+    expect(error.message).toMatch(/try again/i);
+    expect(error.retryable).toBe(true);
+  });
+
+  it("does not call a daily limit retryable", async () => {
+    // A 429 carries Retry-After too, but it counts down to UTC midnight —
+    // offering a retry button would be a lie dressed as a courtesy.
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify({ detail: "global limit reached" }), {
+        status: 429,
+        headers: { "Content-Type": "application/json", "Retry-After": "3600" },
+      }),
+    );
+
+    const error = (await askQuestion("hi").catch((e: unknown) => e)) as ApiError;
+
+    expect(error.retryAfterSeconds).toBe(3600);
+    expect(error.retryable).toBe(false);
   });
 
   it("does not show raw field errors from a 422", async () => {

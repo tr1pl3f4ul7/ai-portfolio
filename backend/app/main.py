@@ -190,7 +190,11 @@ def chat(payload: ChatRequest) -> ChatResponse:
     try:
         answer = rag.answer_question(payload.question)
     except rag.ChatUnavailable as exc:
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
+        # Retry-After is only set when trying again might actually work, so the
+        # client can offer a retry for a busy model tier and stay quiet about a
+        # missing vector store. Its absence is as meaningful as its presence.
+        headers = {"Retry-After": str(exc.retry_after)} if exc.retry_after else None
+        raise HTTPException(status_code=503, detail=str(exc), headers=headers) from exc
 
     return ChatResponse(
         answer=answer.text,

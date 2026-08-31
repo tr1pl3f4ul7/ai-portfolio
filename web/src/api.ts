@@ -101,9 +101,21 @@ export class ApiError extends Error {
     this.status = status;
     this.retryAfterSeconds = retryAfterSeconds;
   }
+
+  /**
+   * Whether trying the exact same request again shortly is likely to work.
+   *
+   * True only for a 503 carrying `Retry-After`, which is the backend saying the
+   * model tier is busy rather than broken. Deliberately excludes 429: its
+   * Retry-After counts down to UTC midnight, so offering a retry button there
+   * would be a lie dressed as a courtesy.
+   */
+  get retryable(): boolean {
+    return this.status === 503 && this.retryAfterSeconds !== null;
+  }
 }
 
-function describeStatus(status: number, detail: string | null): string {
+function describeStatus(status: number, detail: string | null, retryAfterSeconds: number | null): string {
   switch (status) {
     case 422:
       // The backend validated and refused. Its detail is about field shape, not
@@ -117,7 +129,19 @@ function describeStatus(status: number, detail: string | null): string {
     case 429:
       return "Daily limit reached. This runs on a small budget — try again tomorrow.";
     case 503:
-      // Honest rather than reassuring: something downstream is genuinely down.
+      // Two different 503s, told apart by Retry-After (see backend rag.py).
+      //
+      // With it, the free model tier is momentarily busy. The visitor gets
+      // plain words and a retry button — never the upstream's own phrasing,
+      // which said things like "the Z.AI API is rate limiting this service":
+      // accurate, useless to them, and naming a vendor they did not ask about.
+      //
+      // Without it, something is actually broken, and the backend's detail is
+      // the honest thing to show. It says "vector store missing", which is at
+      // least a real answer to "why can't it answer me".
+      if (retryAfterSeconds !== null) {
+        return "The model's busy — it runs on a free tier that gets contended. Try again in a moment.";
+      }
       return detail ?? "That service is temporarily unavailable.";
     default:
       return detail ?? `Something went wrong (${status}).`;
@@ -150,11 +174,12 @@ async function request<T>(baseUrl: string, path: string, init: RequestInit): Pro
   }
 
   if (!response.ok) {
-    const retryAfter = Number(response.headers.get("Retry-After"));
+    const header = Number(response.headers.get("Retry-After"));
+    const retryAfterSeconds = Number.isFinite(header) && header > 0 ? header : null;
     throw new ApiError(
-      describeStatus(response.status, await readDetail(response)),
+      describeStatus(response.status, await readDetail(response), retryAfterSeconds),
       response.status,
-      Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter : null,
+      retryAfterSeconds,
     );
   }
 

@@ -449,6 +449,30 @@ a {
   font-size: var(--size-s-1);
 }
 
+/* Offered after a failure the backend marked transient. Styled as a quiet
+   affordance rather than a primary action — it is a way out of a hiccup, not
+   something to draw the eye. Mirrors .chat-prompt deliberately: same shape of
+   thing, same shape of control. */
+.chat-retry {
+  background: transparent;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-sharp);
+  color: var(--color-ink-faint);
+  font-family: var(--font-sans);
+  font-size: var(--size-s-1);
+  padding: var(--space-1) var(--space-3);
+  margin-top: var(--space-2);
+  cursor: pointer;
+  transition:
+    border-color var(--motion-fast) var(--motion-easing),
+    color var(--motion-fast) var(--motion-easing);
+}
+
+.chat-retry:hover {
+  border-color: var(--color-signal);
+  color: var(--color-ink);
+}
+
 .chat-form,
 .finder-form {
   display: flex;

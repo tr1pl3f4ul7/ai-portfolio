@@ -51,30 +51,59 @@ function renderSources(sources: Source[]): HTMLElement {
   return wrap;
 }
 
-/** One exchange in the transcript. */
-function renderExchange(question: string): {
+/** One exchange in the transcript.
+ *
+ * An exchange can be resolved or rejected more than once, because a rejected
+ * one can be retried in place — the visitor's question stays where it was in
+ * the transcript rather than being re-asked as a new entry, which would read as
+ * though they had typed it twice.
+ */
+interface Exchange {
   node: HTMLElement;
   resolve: (answer: string, sources: Source[], elapsedMs: number) => void;
-  reject: (message: string) => void;
-} {
-  const node = el("div", "chat-exchange");
+  /** `onRetry` is omitted when retrying could not possibly help. */
+  reject: (message: string, onRetry?: () => void) => void;
+}
 
-  const asked = el("p", "chat-question", question);
-  const pending = el("p", "chat-pending", "retrieving…");
-  node.append(asked, pending);
+function renderExchange(question: string): Exchange {
+  const node = el("div", "chat-exchange");
+  node.append(el("p", "chat-question", question));
+
+  const showPending = (): void => {
+    node.append(el("p", "chat-pending", "retrieving…"));
+  };
+
+  /** Clear whatever the last attempt left behind, so a retry starts clean. */
+  const clearAttempt = (): void => {
+    for (const stale of node.querySelectorAll(".chat-pending, .chat-error, .chat-retry")) {
+      stale.remove();
+    }
+  };
+
+  showPending();
 
   return {
     node,
     resolve(answer, sources, elapsedMs) {
-      pending.remove();
+      clearAttempt();
       node.append(el("p", "chat-answer", toPlainText(answer)));
       if (sources.length > 0) node.append(renderSources(sources));
       // The measured round trip: the VM's retrieval plus the model call.
       node.append(el("p", "chat-timing", `server + cloud · ${(elapsedMs / 1000).toFixed(2)}s`));
     },
-    reject(message) {
-      pending.remove();
+    reject(message, onRetry) {
+      clearAttempt();
       node.append(el("p", "chat-error", message));
+      if (!onRetry) return;
+
+      const retry = el("button", "chat-retry", "try again");
+      retry.type = "button";
+      retry.addEventListener("click", () => {
+        clearAttempt();
+        showPending();
+        onRetry();
+      });
+      node.append(retry);
     },
   };
 }
@@ -139,6 +168,38 @@ export function mountChat(root: HTMLElement, options: ChatOptions = {}): void {
     transcript.setAttribute("aria-busy", String(busy));
   };
 
+  /**
+   * Send one question and fill in its exchange. Separate from the submit
+   * handler so a failed attempt can be re-run against the same exchange.
+   *
+   * The retry is offered, not automatic. The backend has already retried this
+   * fourteen times before answering 503, so a client that quietly tried again
+   * would be adding load to a tier that just said it was contended — and doing
+   * it invisibly, on a page whose entire argument is that the numbers are real.
+   */
+  const ask = (question: string, exchange: Exchange): void => {
+    setBusy(true);
+    const started = performance.now();
+
+    void askQuestion(question)
+      .then((response) => {
+        const elapsedMs = performance.now() - started;
+        exchange.resolve(response.answer, response.sources, elapsedMs);
+        options.onAnswered?.(elapsedMs);
+      })
+      .catch((error: unknown) => {
+        const failure = error instanceof ApiError ? error : null;
+        exchange.reject(
+          failure?.message ?? "Something went wrong.",
+          failure?.retryable ? () => ask(question, exchange) : undefined,
+        );
+      })
+      .finally(() => {
+        setBusy(false);
+        input.focus();
+      });
+  };
+
   form.addEventListener("submit", (event) => {
     event.preventDefault();
     if (inFlight) return;
@@ -149,21 +210,7 @@ export function mountChat(root: HTMLElement, options: ChatOptions = {}): void {
     const exchange = renderExchange(question);
     transcript.append(exchange.node);
     input.value = "";
-    setBusy(true);
 
-    const started = performance.now();
-    void askQuestion(question)
-      .then((response) => {
-        const elapsedMs = performance.now() - started;
-        exchange.resolve(response.answer, response.sources, elapsedMs);
-        options.onAnswered?.(elapsedMs);
-      })
-      .catch((error: unknown) => {
-        exchange.reject(error instanceof ApiError ? error.message : "Something went wrong.");
-      })
-      .finally(() => {
-        setBusy(false);
-        input.focus();
-      });
+    ask(question, exchange);
   });
 }
