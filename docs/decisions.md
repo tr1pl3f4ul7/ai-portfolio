@@ -2699,6 +2699,16 @@ secret and exists nowhere else.
   third-party script yields a null token; the submission still goes, and the Worker decides what
   that is worth. Making the contact form unusable because a CDN was slow would be the same
   swallowed-enquiry failure in a new costume.
+- **The edge deploy's smoke test had to be rewritten, and got better for it.** It asserted that a
+  spam payload came back `"received":true` (decision 55), which this change turns into a guaranteed
+  failure — a tokenless POST no longer reaches the classifier at all. It now checks `GET /health`
+  for liveness and asserts that a tokenless POST is refused with **403**. That is worth more than
+  the old receipt: it proves verification is actually on. A missing `TURNSTILE_SECRET_KEY` makes
+  the Worker fail open by design, so the request would sail past and return 200 — this is the check
+  that catches an unprotected contact form, which a liveness probe alone never would. Confirmed
+  against the live Worker before merge: `/health` answered `{"status":"ok"}` and a tokenless POST
+  returned 200, the exact state the new assertion is there to fail on. The payload stays spam so
+  that even in the fail-open case the classifier drops it and nothing is forwarded or emailed.
 
 ---
 
