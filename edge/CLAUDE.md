@@ -79,5 +79,18 @@ npx wrangler dev
 npx wrangler deploy
 ```
 
+⚠️ **None of the above runs natively here** — `workerd` has no build matching the local
+environment, so even `npm install` fails. Use the container wrapper instead:
+
+```bash
+cd edge/test && ./run-tests.sh
+```
+
+It runs **the same checks as `edge-ci.yml`, in the same order**: `npm run typecheck` then `vitest`.
+The typecheck is not redundant with the tests — vitest transpiles TypeScript without checking it,
+so the suite cannot catch a type error at all.
+
 Run `wrangler dev` with both a clean and an obviously-spam payload before every deploy — that
-local smoke test is required by the plan, not optional.
+local smoke test is required by the plan, not optional. Note that a Turnstile token minted for
+`localhost` is rejected with error `110200` unless you add that hostname to the widget in the
+Cloudflare dashboard, so `wrangler dev` exercises the `unverifiable` path by default.

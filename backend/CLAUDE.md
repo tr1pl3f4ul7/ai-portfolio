@@ -92,8 +92,14 @@ Before presenting any retrieval work, run the whole suite on Linux:
 cd backend/test && ./run-tests.sh
 ```
 
-That builds a `linux/arm64` image matching the VM and runs everything. Source is bind-mounted, so
-only a `requirements.txt` change forces a rebuild.
+That builds a `linux/arm64` image matching the VM and runs **the same checks as
+`backend-ci.yml`, in the same order**: `ruff check .` then `pytest`. A green run here therefore
+means what CI means by it. Source is bind-mounted, so only a `requirements.txt` change forces a
+rebuild.
+
+One deliberate divergence, documented in the script: `EXE002` is ignored in the container only. The
+bind mount presents every file from the host as `0777`, so the rule fires on all 38 Python files,
+none of which is executable in git. CI runs it unignored on a real checkout.
 
 ## Python 3.12 everywhere
 

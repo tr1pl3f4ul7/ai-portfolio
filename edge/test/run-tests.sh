@@ -33,13 +33,24 @@ docker build --progress=plain \
   -t "${IMAGE}" \
   "$(hostpath "${EDGE}")"
 
-printf '\n\033[1;34m==>\033[0m Running edge test suite (linux/arm64)\n'
 # Source is mounted rather than copied so edits take effect without a rebuild.
 # node_modules stays inside the image (workerd's binary is linux/arm64; a bind
 # mount would shadow it with whatever — or nothing — is on the host).
-docker run --rm \
-  -v "$(hostpath "${EDGE}")":/app \
-  -v /app/node_modules \
-  -w /app \
-  "${IMAGE}" \
-  npx vitest run "$@"
+run_in_container() {
+  docker run --rm \
+    -v "$(hostpath "${EDGE}")":/app \
+    -v /app/node_modules \
+    -w /app \
+    "${IMAGE}" \
+    "$@"
+}
+
+# The same checks as .github/workflows/edge-ci.yml, in the same order, so a green
+# run here means what CI means by it. Typechecking is not redundant with the
+# tests: vitest transpiles TypeScript without checking it, so the suite cannot
+# catch a type error at all — which is exactly how two of them reached a commit.
+printf '\n\033[1;34m==>\033[0m Typechecking\n'
+run_in_container npm run typecheck
+
+printf '\n\033[1;34m==>\033[0m Running edge test suite (linux/arm64)\n'
+run_in_container npx vitest run "$@"
