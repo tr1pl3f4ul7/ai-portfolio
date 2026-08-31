@@ -1,20 +1,34 @@
 /**
  * Edge pre-filter in front of the backend's /contact.
  *
- * `web form → this Worker → (spam? drop) → backend /contact → Claude triage`
+ * `web form → this Worker → (bot? reject) → (spam? drop) → backend /contact → triage`
  *
- * Validates cheaply before spending any inference (edge/CLAUDE.md), then
- * classifies. Spam gets a response shaped exactly like a real one — same
- * `ContactResponse` the backend returns — so nothing about the response
- * tells a spam tool it was filtered rather than delivered. Clean submissions
- * are forwarded untouched.
+ * Three gates, deliberately ordered cheapest-first: local validation costs
+ * nothing, Turnstile costs a fast network round trip, and the spam classifier
+ * costs inference. Nothing expensive runs behind something cheap that would
+ * have rejected the request anyway (edge/CLAUDE.md).
+ *
+ * The two rejections behave differently on purpose:
+ *
+ * - **Spam** gets a response shaped exactly like a real one — same
+ *   `ContactResponse` the backend returns — so nothing tells a spam tool it
+ *   was filtered rather than delivered.
+ * - **A failed Turnstile check** gets an honest 403. It has to: the commonest
+ *   real-world cause is a token that expired while someone had the tab open,
+ *   and a human who typed a genuine enquiry needs to be told to try again
+ *   rather than handed a fake receipt for a message nobody will ever read.
  */
 
 import { classify, type Submission } from "./classify";
+import { verifyToken } from "./turnstile";
 
 export interface Env {
   AI: { run(model: string, inputs: Record<string, unknown>): Promise<{ response?: string }> };
   BACKEND_URL: string;
+  /** Set with `wrangler secret put TURNSTILE_SECRET_KEY`. Never in wrangler.toml. */
+  TURNSTILE_SECRET_KEY?: string;
+  /** Comma-separated hostnames a token may be minted for. See turnstile.ts. */
+  TURNSTILE_HOSTNAMES?: string;
 }
 
 const MAX_NAME_CHARS = 120; // Mirrors backend/app/config.py.
@@ -48,6 +62,12 @@ function withCors(response: Response, origin: string | null): Response {
  * Cheap rejection before any model call — missing fields, absurd lengths and
  * malformed bodies get rejected without spending inference (edge/CLAUDE.md).
  */
+/** The field the web client puts the Turnstile token in.
+ *
+ * Read and discarded here — it is never forwarded, so `backend/app/schemas.py`
+ * stays unchanged and the backend never sees a credential it has no use for. */
+export const TOKEN_FIELD = "turnstileToken";
+
 export function validate(body: unknown): Submission | null {
   if (typeof body !== "object" || body === null) return null;
   const { name, email, message } = body as Record<string, unknown>;
@@ -127,6 +147,41 @@ export default {
         new Response(JSON.stringify({ error: "Invalid submission" }), { status: 400, headers: JSON_HEADERS }),
         origin,
       );
+    }
+
+    // Between local validation and inference: a round trip, but a free and
+    // fast one, and it rejects the automated traffic that would otherwise be
+    // the thing spending neurons.
+    const hostnames = new Set(
+      (env.TURNSTILE_HOSTNAMES ?? "")
+        .split(",")
+        .map((hostname) => hostname.trim())
+        .filter(Boolean),
+    );
+    const verdict = await verifyToken(
+      env.TURNSTILE_SECRET_KEY ?? "",
+      (body as Record<string, unknown>)[TOKEN_FIELD],
+      request.headers.get("CF-Connecting-IP"),
+      hostnames,
+    );
+
+    if (verdict.outcome === "rejected") {
+      // The reason, never the submission — same rule as the classifier below.
+      console.log(`contact submission failed turnstile: ${verdict.reason}`);
+      return withCors(
+        new Response(
+          JSON.stringify({ error: "Verification failed. Reload the page and try again." }),
+          { status: 403, headers: JSON_HEADERS },
+        ),
+        origin,
+      );
+    }
+
+    if (verdict.outcome === "unverifiable") {
+      // Fails open, per edge/CLAUDE.md — but loudly. This branch means the
+      // form is unprotected right now, which is a thing to find in the logs
+      // rather than discover from a flood of submissions.
+      console.error(`turnstile check could not run, forwarding anyway: ${verdict.reason}`);
     }
 
     const classification = await classify(env.AI, submission);
