@@ -92,8 +92,25 @@ it visibly doesn't.
 
 **Files:** `edge/src/index.ts`, `edge/src/classify.ts`
 
-Every contact-form submission is validated cheaply first (name/email/message shape and length),
-then classified by a small model running on **Cloudflare Workers AI** — `@cf/meta/llama-3.1-8b-fast-v2`
+Every contact-form submission passes three gates here, ordered by what they cost: local field
+validation is free, a **Turnstile** check is a fast network round trip, and the spam classifier
+costs inference. Nothing expensive runs behind something cheap that would have rejected the request
+anyway.
+
+**Turnstile** (decision 69) proves a browser with a human behind it sent the form — no cookies, no
+fingerprinting, no personal data. The widget on the page is not the protection; anything can POST
+straight at the Worker, so the token is verified server-side here, against Cloudflare's siteverify
+endpoint, and dropped rather than forwarded. The backend never sees it.
+
+It is also where the fail-open rule gets interesting. `edge/CLAUDE.md` says forward rather than drop
+when a check errors, because a swallowed job enquiry is the failure this project cannot afford — but
+a security gate that passes everything when it breaks is not a gate. The resolution is to separate
+*the client failed the check* (no token, replayed, minted for another site → refuse) from *we could
+not run the check* (Cloudflare unreachable → forward, and log loudly). An attacker cannot choose the
+second branch, and both remaining gates still sit behind it.
+
+Submissions that clear Turnstile are then validated and classified by a small model running on
+**Cloudflare Workers AI** — `@cf/meta/llama-3.1-8b-fast-v2`
 — as either a genuine enquiry or spam. A submission classified as spam gets a realistic-looking
 response and goes no further; a tool sending automated spam has no way to tell it was filtered. A
 clean submission is forwarded, unchanged, to the backend for the real work: the model reads it,

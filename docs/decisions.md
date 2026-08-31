@@ -2630,6 +2630,78 @@ or personal data. Until it lands, `/contact` is protected by a total and nothing
 
 ---
 
+## 69. Cloudflare Turnstile in front of the contact form, verified at the edge
+
+**Date:** 2026-09-01
+**Status:** accepted — closes the gap decision 68 knowingly opened
+
+**Context:** Decision 68 removed per-IP rate limiting because it guarded a paid inference budget
+that no longer exists. It left a real hole and said so: one caller could spend `/contact`'s entire
+50/day allowance in a minute and lock out every genuine enquiry until the next UTC midnight. The
+daily total is not abuse control, it is a Resend quota guard.
+
+**Decision:** Cloudflare Turnstile, with the token verified **in the edge Worker**, not the backend.
+
+The Worker already fronts the contact form on its own hostname (decision 48), so a bot is turned
+away at Cloudflare's edge and never reaches the Oracle VM — no request, no inference, no row. The
+three gates now run cheapest-first: local field validation is free, Turnstile is a fast network
+round trip, the spam classifier costs neurons.
+
+The token is read from the JSON body, verified, and **dropped**. It is never forwarded, so
+`backend/app/schemas.py` is untouched and the backend never receives a credential it has no use
+for. The site key is public and lives in `web/src/config.ts`; `TURNSTILE_SECRET_KEY` is a Worker
+secret and exists nowhere else.
+
+**Rejected:**
+- *Browser fingerprinting,* which LJ raised first. It is tracking. Under GDPR/ePrivacy it requires
+  consent exactly as a cookie does, Safari, Firefox and Brave actively defeat it, and it would sit
+  badly in a project that scrubs IPs from Sentry (`app/observability.py`) and turned down a better
+  model over visitor privacy (decision 67). Turnstile needs no cookie, no fingerprint and no
+  personal data.
+- *Verifying in the FastAPI backend instead.* Would work, and would mean every bot still costs a
+  VM request, a database write and a triage attempt. The Worker is already in the path.
+- *Restoring the per-IP counter.* Trivially defeated by the traffic worth stopping, and LJ ruled
+  out IP-based limiting explicitly.
+- *A honeypot field.* Free and worth roughly what it costs against anything but the laziest bots.
+
+**Consequences:**
+
+- **The fail-open rule needed splitting, not overriding.** `edge/CLAUDE.md` says fail open — a
+  swallowed job enquiry is the failure this portfolio cannot afford. Applied verbatim to a security
+  check that is nonsense: a gate that passes everything when it errors is not a gate, and every bot
+  would simply omit the token. So `src/turnstile.ts` returns three outcomes rather than two:
+  `rejected` (the *client* failed — no token, malformed, replayed, or minted for another site) is
+  refused; `unverifiable` (*we* could not run the check — siteverify down, timed out, unreadable,
+  or the secret unset) forwards and logs loudly. An attacker cannot choose the second branch, and
+  the spam classifier and the daily ceiling still sit behind it.
+- **The secret being unset is `unverifiable`, checked before the token.** That ordering is
+  deliberate: a deploy that forgets the secret leaves the form working rather than rejecting every
+  visitor, it keeps `wrangler dev` usable without one, and it meant adding Turnstile did not require
+  rewriting every existing Worker test. The cost is that the form is unprotected in that state,
+  which is why the branch logs at error level rather than silently.
+- **A failed check gets an honest 403, unlike spam.** Spam receives a synthetic receipt so a spam
+  tool cannot tell it was filtered. Turnstile cannot copy that: its commonest real-world cause is a
+  token that expired while someone had the tab open, and that person wrote a genuine message. They
+  are told to try again, and the widget issues a fresh challenge.
+- **Tokens are single-use, so the widget resets after every submit — success or failure.** Without
+  it, a visitor who hit any error (a 503, a field the backend rejected) would find their retry
+  failing verification for a reason unrelated to what they just fixed.
+- **The hostname allowlist is load-bearing, not decoration.** The site key is public by design.
+  Without checking `hostname` on the siteverify response, anyone could embed that key on their own
+  domain, mint valid tokens there and post them here. `TURNSTILE_HOSTNAMES` lives in
+  `wrangler.toml` because it is not a secret.
+- **`localhost` is not an allowed hostname on the widget.** Verified in a real browser: the script
+  loads, `turnstile.render()` succeeds, and the challenge then fails with error `110200` — domain
+  not allowed. Local `wrangler dev` therefore exercises the `unverifiable` path rather than the
+  happy one. Add `localhost` to the widget's hostname list in the Turnstile dashboard to test the
+  real flow locally.
+- **The form degrades rather than breaking if the script never loads.** A blocked or slow
+  third-party script yields a null token; the submission still goes, and the Worker decides what
+  that is worth. Making the contact form unusable because a CDN was slow would be the same
+  swallowed-enquiry failure in a new costume.
+
+---
+
 ## Open decisions
 
 Not yet decided. Each will get a full entry when resolved.
