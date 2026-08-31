@@ -16,12 +16,12 @@
 # populated once by hand (see the runbook) — this script never needed to touch
 # it and still doesn't for a plain local run. In CI (CI=true, set automatically
 # by GitHub Actions), it instead WRITES that file from this process's own
-# environment (ANTHROPIC_API_KEY, RESEND_API_KEY, CONTACT_NOTIFY_TO,
+# environment (ZAI_API_KEY, RESEND_API_KEY, CONTACT_NOTIFY_TO,
 # SENTRY_DSN — themselves sourced from GitHub Actions secrets by the workflow),
 # so GitHub Secrets becomes the one place these values live and every deploy
 # carries them through automatically. Piped over SSH via stdin, never as a
 # command-line argument or an echoed value, and CI is required as well as the
-# values themselves so a stray locally-exported ANTHROPIC_API_KEY (e.g. for
+# values themselves so a stray locally-exported ZAI_API_KEY (e.g. for
 # unrelated testing) can never silently overwrite the VM's real env file.
 #
 set -euo pipefail
@@ -134,11 +134,11 @@ ok "unit and nginx config staged"
 
 if [[ ${CI:-} == "true" ]]; then
   log "CI run detected — writing ${APP_ENV_FILE} from GitHub Actions secrets"
-  for var in ANTHROPIC_API_KEY RESEND_API_KEY CONTACT_NOTIFY_TO SENTRY_DSN; do
+  for var in ZAI_API_KEY RESEND_API_KEY CONTACT_NOTIFY_TO SENTRY_DSN; do
     [[ -n ${!var:-} ]] || die "CI=true but \$${var} is empty — is it set in the workflow's env?"
   done
   remote "sudo install -m 640 -o root -g ${APP_USER} /dev/null ${APP_ENV_FILE} && sudo tee ${APP_ENV_FILE} >/dev/null" <<EOF
-ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+ZAI_API_KEY=${ZAI_API_KEY}
 RESEND_API_KEY=${RESEND_API_KEY}
 CONTACT_NOTIFY_TO=${CONTACT_NOTIFY_TO}
 SENTRY_DSN=${SENTRY_DSN}
@@ -215,17 +215,17 @@ fi
 
 # 2f. Guard: the service will not start without its secrets.
 step "checking the environment file"
-if [[ ! -s "${APP_ENV_FILE}" ]] || ! grep -q '^ANTHROPIC_API_KEY=' "${APP_ENV_FILE}"; then
+if [[ ! -s "${APP_ENV_FILE}" ]] || ! grep -q '^ZAI_API_KEY=' "${APP_ENV_FILE}"; then
   cat >&2 <<GUARD
 
-  ${APP_ENV_FILE} is missing or has no ANTHROPIC_API_KEY.
+  ${APP_ENV_FILE} is missing or has no ZAI_API_KEY.
 
   Everything else is deployed. Populate the env file, then re-run deploy.sh:
 
     sudo install -m 640 -o root -g ${APP_USER} /dev/null ${APP_ENV_FILE}
     sudo tee ${APP_ENV_FILE} >/dev/null   # paste the vars, then Ctrl-D
 
-  Required: ANTHROPIC_API_KEY, RESEND_API_KEY, CONTACT_NOTIFY_TO, SENTRY_DSN,
+  Required: ZAI_API_KEY, RESEND_API_KEY, CONTACT_NOTIFY_TO, SENTRY_DSN,
             AI_PORTFOLIO_ENV=production
 GUARD
   exit 3

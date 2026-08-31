@@ -29,7 +29,7 @@ jobs:
     env:
       VM_HOST: ${{ secrets.ORACLE_VM_HOST }}
       SSH_KEY: ${{ github.workspace }}/.deploy_key
-      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      ZAI_API_KEY: ${{ secrets.ZAI_API_KEY }}
       RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
       CONTACT_NOTIFY_TO: ${{ secrets.CONTACT_NOTIFY_TO }}
       SENTRY_DSN: ${{ secrets.SENTRY_DSN_BACKEND }}

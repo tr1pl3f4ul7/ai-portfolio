@@ -96,7 +96,7 @@ step "Writing a dummy environment file"
 # Obvious non-secrets. The unit requires this file to exist; the app never makes
 # a real API call in this test because /health touches nothing downstream.
 dexec bash -c "cat > '${ENV_FILE}' <<'ENV'
-ANTHROPIC_API_KEY=sk-ant-api03-UNIT-TEST-NOT-REAL
+ZAI_API_KEY=zai-UNIT-TEST-NOT-REAL
 RESEND_API_KEY=re_UNIT_TEST_NOT_REAL
 CONTACT_NOTIFY_TO=nobody@example.com
 AI_PORTFOLIO_ENV=unit-test

@@ -37,6 +37,9 @@ jobs:
         run: ruff check .
 
       - name: Test
-        # Tests mock the Claude API entirely (backend/CLAUDE.md) — no
-        # ANTHROPIC_API_KEY or other secret needed here.
+        # pytest.ini defaults to `-m "not live"`, so this run mocks the model
+        # entirely and needs no secret. The `live` tests are deliberately not
+        # run here: GLM-4.7-Flash permits one in-flight request per account, so
+        # two concurrent CI jobs would 429 each other and fail for a reason
+        # that has nothing to do with the change under test.
         run: pytest -v
