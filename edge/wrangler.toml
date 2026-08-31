@@ -21,3 +21,10 @@ custom_domain = true
 # The backend origin this Worker forwards clean submissions to. Not a secret.
 # api.ljubenvassilev.com has no Worker route of its own — see decision 48.
 BACKEND_URL = "https://api.ljubenvassilev.com"
+
+# Hostnames a Turnstile token may legitimately have been minted for. The site
+# key is public by design — it is in the page source — so without this anyone
+# could embed it on their own domain and post the resulting tokens here. This
+# is what ties a token back to our site. Not a secret; the matching
+# TURNSTILE_SECRET_KEY is set with `wrangler secret put`.
+TURNSTILE_HOSTNAMES = "ljubenvassilev.com,www.ljubenvassilev.com"

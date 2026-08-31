@@ -170,6 +170,111 @@ describe("the fetch handler", () => {
   });
 });
 
+describe("Turnstile", () => {
+  const SECRET = "test-secret-not-real";
+
+  /** An env with Turnstile actually configured. The default fakeEnv() has no
+   * secret on purpose — that is the "not configured" path, which fails open,
+   * and it is what the rest of this file exercises. */
+  function guardedEnv(classification: "CLEAN" | "SPAM" = "CLEAN"): Env {
+    return { ...fakeEnv(classification), TURNSTILE_SECRET_KEY: SECRET, TURNSTILE_HOSTNAMES: "ljubenvassilev.com" };
+  }
+
+  /** Routes siteverify and the backend forward to separate answers, the way
+   * they are separate services in production. */
+  function routedFetch(siteverify: unknown, status = 200) {
+    return vi.fn(async (url: string, init?: RequestInit) => {
+      void init;
+      if (String(url).includes("siteverify")) {
+        return new Response(JSON.stringify(siteverify), { status });
+      }
+      return new Response(JSON.stringify({ received: true, reference: "abc123def456" }), { status: 200 });
+    });
+  }
+
+  it("rejects a submission with no token, without spending inference", async () => {
+    const env = guardedEnv();
+    const runSpy = vi.spyOn(env.AI, "run");
+    vi.stubGlobal("fetch", routedFetch({ success: true, hostname: "ljubenvassilev.com" }));
+
+    const response = await worker.fetch(post(VALID), env);
+
+    expect(response.status).toBe(403);
+    expect(runSpy).not.toHaveBeenCalled();
+  });
+
+  it("rejects a submission whose token siteverify refuses", async () => {
+    vi.stubGlobal("fetch", routedFetch({ success: false, "error-codes": ["invalid-input-response"] }));
+
+    const response = await worker.fetch(post({ ...VALID, turnstileToken: "bad" }), guardedEnv());
+
+    expect(response.status).toBe(403);
+  });
+
+  it("tells a rejected human to try again rather than faking a receipt", async () => {
+    // Unlike spam, which gets a synthetic receipt: the commonest cause here is
+    // a token that expired in an open tab, and that person wrote a real message.
+    vi.stubGlobal("fetch", routedFetch({ success: false, "error-codes": ["timeout-or-duplicate"] }));
+
+    const response = await worker.fetch(post({ ...VALID, turnstileToken: "stale" }), guardedEnv());
+    const body = await response.json<{ error?: string; received?: boolean }>();
+
+    expect(body.received).toBeUndefined();
+    expect(body.error).toMatch(/try again/i);
+  });
+
+  it("forwards a verified submission, with the token stripped", async () => {
+    const fetchMock = routedFetch({ success: true, hostname: "ljubenvassilev.com" });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const response = await worker.fetch(post({ ...VALID, turnstileToken: "good" }), guardedEnv("CLEAN"));
+
+    expect(response.status).toBe(200);
+    const forwarded = fetchMock.mock.calls.find(([url]) => String(url).includes("/contact"));
+    expect(forwarded).toBeDefined();
+    // The backend's schema has no such field and no use for the credential.
+    expect(String(forwarded![1]?.body)).toBe(JSON.stringify(VALID));
+  });
+
+  it("fails open when siteverify itself is unreachable", async () => {
+    // edge/CLAUDE.md's rule: a swallowed job enquiry is the failure this
+    // portfolio cannot afford, and Cloudflare being down is not the sender's
+    // fault. An attacker cannot choose this branch.
+    const fetchMock = vi.fn(async (url: string) => {
+      if (String(url).includes("siteverify")) throw new Error("network down");
+      return new Response(JSON.stringify({ received: true, reference: "abc123def456" }), { status: 200 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const response = await worker.fetch(post({ ...VALID, turnstileToken: "good" }), guardedEnv());
+
+    expect(response.status).toBe(200);
+    expect(fetchMock.mock.calls.some(([url]) => String(url).includes("/contact"))).toBe(true);
+  });
+
+  it("still screens for spam after a token passes", async () => {
+    // Turnstile proves a human sent it. It says nothing about what they wrote,
+    // so the classifier must still run.
+    const fetchMock = routedFetch({ success: true, hostname: "ljubenvassilev.com" });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const response = await worker.fetch(post({ ...VALID, turnstileToken: "good" }), guardedEnv("SPAM"));
+
+    expect(response.status).toBe(200);
+    expect(fetchMock.mock.calls.some(([url]) => String(url).includes("/contact"))).toBe(false);
+  });
+
+  it("checks the token before spending inference on the submission", async () => {
+    const env = guardedEnv();
+    const runSpy = vi.spyOn(env.AI, "run");
+    vi.stubGlobal("fetch", routedFetch({ success: false, "error-codes": ["invalid-input-response"] }));
+
+    await worker.fetch(post({ ...VALID, turnstileToken: "bad" }), env);
+
+    expect(runSpy).not.toHaveBeenCalled();
+  });
+});
+
 describe("CORS", () => {
   const ALLOWED = "https://ljubenvassilev.com";
 
