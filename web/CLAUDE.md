@@ -9,7 +9,11 @@ Three interactive pieces:
    result is always one of the real projects already on the page, never invented text (decision 44).
    If it silently falls back to a server call, the demo is a lie.
 2. **Chat widget** → `POST /chat` on the backend (RAG).
-3. **Contact form** → the Cloudflare Worker, which pre-filters and forwards to `/contact`.
+3. **Contact form** → the Cloudflare Worker, which verifies a Turnstile token, pre-filters for
+   spam, and forwards clean submissions to `/contact`. The widget is rendered explicitly
+   (`src/turnstile.ts`) because the form is built in JS, so Turnstile's automatic DOM scan on load
+   would find nothing to attach to. Tokens are single-use — the widget is reset after every submit,
+   success or failure.
 
 ## Stack
 
@@ -55,9 +59,11 @@ PostHog events to fire explicitly (beyond autocapture): **form submitted**, **ch
 - **Degrade honestly.** If a browser capability this page depends on is missing or broken, say so
   plainly — don't silently route to the backend instead.
 - **The backend URL is configuration**, not a hardcoded literal scattered through the source.
-- **Never put secrets in frontend code.** The PostHog project key and Sentry DSN are publishable
-  by design; the Anthropic key is not and must never appear here. If you're reaching for
-  `ANTHROPIC_API_KEY` in this directory, the design is wrong.
+- **Never put secrets in frontend code.** The PostHog project key, the Sentry DSN and the
+  Turnstile **site** key are all publishable by design — they ship in the bundle and identify a
+  project or widget, not an account. `ZAI_API_KEY` and `TURNSTILE_SECRET_KEY` are the opposite and
+  must never appear here. If you're reaching for either in this directory, the design is wrong: the
+  model is called by the backend, and the Turnstile token is verified by the edge Worker.
 - **Scroll animations respect `prefers-reduced-motion`.** Non-negotiable.
 - Keep the page fast without the model loaded. First paint shouldn't wait on AI anything.
 

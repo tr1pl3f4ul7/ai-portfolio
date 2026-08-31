@@ -29,6 +29,17 @@ export interface ContactRequest {
   message: string;
 }
 
+/** What actually goes on the wire to the edge Worker.
+ *
+ * The token is deliberately NOT part of `ContactRequest`: that interface
+ * mirrors `backend/app/schemas.py`, and the backend never sees the token. The
+ * Worker reads it, verifies it, and drops it before forwarding. Keeping the two
+ * shapes separate is what stops the api-contract drifting over a field the
+ * backend has no use for. */
+interface ContactWirePayload extends ContactRequest {
+  turnstileToken: string | null;
+}
+
 export interface ContactResponse {
   received: boolean;
   reference: string;
@@ -98,6 +109,11 @@ function describeStatus(status: number, detail: string | null): string {
       // The backend validated and refused. Its detail is about field shape, not
       // something a visitor can act on, so say the useful thing instead.
       return "That didn't look right — check the fields and try again.";
+    case 403:
+      // The edge Worker's Turnstile check. Almost always a token that expired
+      // while the tab sat open, so the useful instruction is "try again" — the
+      // form issues a fresh challenge on failure.
+      return detail ?? "Verification failed. Try again.";
     case 429:
       return "Daily limit reached. This runs on a small budget — try again tomorrow.";
     case 503:
@@ -159,15 +175,19 @@ function getJson<T>(baseUrl: string, path: string): Promise<T> {
 
 // --- Endpoints ---------------------------------------------------------------
 
-/** Ask the RAG chatbot. Retrieval on the VM, generation at the Claude API. */
+/** Ask the RAG chatbot. Retrieval on the VM, generation at the hosted model API. */
 export function askQuestion(question: string): Promise<ChatResponse> {
   return postJson<ChatResponse>(API_BASE_URL, "/chat", { question });
 }
 
 /** Submit the contact form. Goes to the edge Worker's own domain, not the
  * backend directly — see config.ts. */
-export function submitContact(submission: ContactRequest): Promise<ContactResponse> {
-  return postJson<ContactResponse>(CONTACT_BASE_URL, "/contact", submission);
+export function submitContact(
+  submission: ContactRequest,
+  turnstileToken: string | null = null,
+): Promise<ContactResponse> {
+  const payload: ContactWirePayload = { ...submission, turnstileToken };
+  return postJson<ContactResponse>(CONTACT_BASE_URL, "/contact", payload);
 }
 
 // --- Content ------------------------------------------------------------

@@ -18,3 +18,17 @@ export const CONTACT_BASE_URL: string = import.meta.env.VITE_CONTACT_BASE_URL ??
 
 /** Longest a visitor waits before we give up on a request. */
 export const REQUEST_TIMEOUT_MS = 60_000;
+
+/**
+ * Turnstile site key for the contact form.
+ *
+ * Public by design — it ships in the page source and identifies the widget, not
+ * the account. The half that must stay secret is TURNSTILE_SECRET_KEY, which
+ * lives only in the edge Worker (`wrangler secret put`) and never here.
+ *
+ * Hardcoded rather than read from an env var, unlike the origins above: those
+ * differ between dev and production, this does not. Cloudflare pairs the key
+ * with a hostname allowlist, so the same key is correct everywhere and a build
+ * that forgot to set it would silently ship a form nobody can submit.
+ */
+export const TURNSTILE_SITE_KEY = "0x4AAAAAAEjCCmr_8MCC-16C";

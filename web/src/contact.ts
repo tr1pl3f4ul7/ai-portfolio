@@ -1,16 +1,18 @@
 /**
  * The contact form.
  *
- * Posts straight to the backend's /contact, which stores the submission before
- * anything that can fail, then triages it with Claude and emails LJ. Phase 4
- * puts the Cloudflare Worker in front of this for spam pre-filtering; until
- * then the path is direct.
+ * Posts to the edge Worker, which verifies a Turnstile token, screens for spam,
+ * and forwards clean submissions to the backend's /contact — where the message
+ * is stored before anything that can fail, then triaged and emailed to LJ.
  *
  * Client-side validation exists to save a round trip, not to be the gate — the
- * backend validates independently and is the only thing that actually counts.
+ * Worker and the backend both validate independently and are the only things
+ * that actually count. The Turnstile widget here is the same: the token is
+ * proof, but it is the Worker's server-side check that makes it mean anything.
  */
 
 import { ApiError, submitContact } from "./api";
+import { mountWidget, type Widget } from "./turnstile";
 
 // Matches nothing clever on purpose: a full address grammar belongs on the
 // server (which uses a real validator). This only catches obvious typos before
@@ -74,6 +76,8 @@ function field(
 export interface ContactOptions {
   /** Called once the backend confirms the submission, for analytics. */
   onSubmitted?: () => void;
+  /** Injectable purely so tests can run without loading a third-party script. */
+  mountTurnstile?: (container: HTMLElement) => Promise<Widget>;
 }
 
 export function mountContact(root: HTMLElement, options: ContactOptions = {}): void {
@@ -111,8 +115,23 @@ export function mountContact(root: HTMLElement, options: ContactOptions = {}): v
   status.setAttribute("aria-live", "polite");
   status.hidden = true;
 
-  form.append(name.wrap, email.wrap, message.wrap, button, status);
+  // Sits above the button because that is where an interactive challenge
+  // appears when Cloudflare asks for one; below it, the form would visibly
+  // reflow under the pointer on its way to being clicked.
+  const turnstileSlot = document.createElement("div");
+  turnstileSlot.className = "contact-turnstile";
+
+  form.append(name.wrap, email.wrap, message.wrap, turnstileSlot, button, status);
   root.append(form);
+
+  // Rendered without awaiting: the widget is invisible for most visitors and
+  // the form must be usable the instant it is on screen, not once a
+  // third-party script has finished loading.
+  let widget: Widget | null = null;
+  const mount = options.mountTurnstile ?? ((container: HTMLElement) => mountWidget(container));
+  void mount(turnstileSlot).then((mounted) => {
+    widget = mounted;
+  });
 
   const controls = [
     { input: nameInput, error: name.error, key: "name" as const },
@@ -154,11 +173,14 @@ export function mountContact(root: HTMLElement, options: ContactOptions = {}): v
     status.hidden = true;
     status.classList.remove("is-error", "is-sent");
 
-    void submitContact({
-      name: fields.name.trim(),
-      email: fields.email.trim(),
-      message: fields.message.trim(),
-    })
+    void submitContact(
+      {
+        name: fields.name.trim(),
+        email: fields.email.trim(),
+        message: fields.message.trim(),
+      },
+      widget?.token() ?? null,
+    )
       .then((response) => {
         form.reset();
         showProblems({});
@@ -173,6 +195,13 @@ export function mountContact(root: HTMLElement, options: ContactOptions = {}): v
         status.hidden = false;
       })
       .finally(() => {
+        // Turnstile tokens are single-use, so the one just sent is spent
+        // whether or not the submission succeeded. Without this, a visitor who
+        // hits any error — a 503, a typo the backend rejected — would have
+        // their retry fail verification for a reason that has nothing to do
+        // with what they fixed.
+        widget?.reset();
+
         inFlight = false;
         button.disabled = false;
         button.textContent = "send";

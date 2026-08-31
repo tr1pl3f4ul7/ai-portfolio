@@ -12,6 +12,11 @@
       content="Mobile engineer, ten years. This site runs AI inference in four different places — in your browser, at the edge, on a server I provisioned, and at a hosted model API."
     />
 
+    <!-- Turnstile, for the contact form. `render=explicit` because the form is
+         built in JS (src/contact.ts) rather than present in this markup, so the
+         automatic DOM scan on load would find nothing to attach to. -->
+    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async defer></script>
+
     <link rel="stylesheet" href="/src/styles/tokens.css" />
     <link rel="stylesheet" href="/src/styles/main.css" />
     <link rel="stylesheet" href="/src/styles/motion.css" />

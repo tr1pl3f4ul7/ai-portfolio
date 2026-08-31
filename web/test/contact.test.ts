@@ -7,14 +7,18 @@
  * reaches the network.
  */
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi, type Mock } from "vitest";
 import { ApiError } from "../src/api";
 import { validate } from "../src/contact";
+import type { Widget } from "../src/turnstile";
 
 const submitContact = vi.fn();
 vi.mock("../src/api", async () => {
   const actual = await vi.importActual<typeof import("../src/api")>("../src/api");
-  return { ...actual, submitContact: (s: unknown) => submitContact(s) };
+  // Both arguments forwarded — the second is the Turnstile token, and a
+  // one-arg wrapper would silently drop it and make every token assertion
+  // below pass vacuously.
+  return { ...actual, submitContact: (s: unknown, t: unknown) => submitContact(s, t) };
 });
 
 const { mountContact } = await import("../src/contact");
@@ -42,11 +46,35 @@ function submit(): void {
 
 const VALID = { name: "Dana Okafor", email: "dana@example.com", message: "Are you available?" };
 
+// A stand-in for the Turnstile widget. Injected rather than loaded, so these
+// tests never pull a third-party script into jsdom — and so the real
+// `whenReady` poll doesn't sit there for ten seconds waiting for a
+// `window.turnstile` that will never appear.
+let widgetToken: string | null;
+let widgetReset: Mock<() => void>;
+
+function mountWith(token: string | null = "test-token"): void {
+  widgetToken = token;
+  widgetReset = vi.fn<() => void>(() => {
+    widgetToken = null;
+  });
+  mountContact(root, {
+    // Wrapped rather than passed directly: vi.fn()'s type is not assignable to
+    // Widget's `() => void`, and the wrapper keeps the spy while satisfying it.
+    mountTurnstile: async (): Promise<Widget> => ({
+      token: () => widgetToken,
+      reset: () => {
+        widgetReset();
+      },
+    }),
+  });
+}
+
 beforeEach(() => {
   document.body.innerHTML = "<div id='contact'></div>";
   root = document.querySelector("#contact")!;
   submitContact.mockReset();
-  mountContact(root);
+  mountWith();
 });
 
 describe("validate (pure)", () => {
@@ -226,5 +254,65 @@ describe("failures", () => {
 
     await vi.waitFor(() => expect(text()).toContain("second-try"));
     expect(status().classList.contains("is-error")).toBe(false);
+  });
+});
+
+
+describe("Turnstile", () => {
+  it("sends the token alongside the submission", async () => {
+    submitContact.mockResolvedValue({ received: true, reference: "abc123" });
+    // The widget mounts asynchronously; the form is usable before it lands.
+    await vi.waitFor(() => expect(root.querySelector(".contact-turnstile")).toBeTruthy());
+
+    fill(VALID);
+    submit();
+
+    await vi.waitFor(() => expect(submitContact).toHaveBeenCalled());
+    expect(submitContact.mock.calls[0]![1]).toBe("test-token");
+  });
+
+  it("resets the widget after a successful send", async () => {
+    // Tokens are single-use. Without a reset the next submission would reuse a
+    // spent one and be rejected for a reason the visitor cannot see.
+    submitContact.mockResolvedValue({ received: true, reference: "abc123" });
+
+    fill(VALID);
+    submit();
+
+    await vi.waitFor(() => expect(widgetReset).toHaveBeenCalled());
+  });
+
+  it("resets the widget after a failed send", async () => {
+    // The token is spent either way, so a retry after any error — a 503, a
+    // rejected field — must not fail verification for an unrelated reason.
+    submitContact.mockRejectedValue(new ApiError("That service is temporarily unavailable.", 503));
+
+    fill(VALID);
+    submit();
+
+    await vi.waitFor(() => expect(widgetReset).toHaveBeenCalled());
+  });
+
+  it("still submits when Turnstile never loaded", async () => {
+    // A blocked or slow third-party script must not make the form unusable.
+    // The Worker decides what a tokenless submission is worth, not this file.
+    document.body.innerHTML = "<div id='contact'></div>";
+    root = document.querySelector("#contact")!;
+    submitContact.mockReset();
+    submitContact.mockResolvedValue({ received: true, reference: "abc123" });
+    mountWith(null);
+
+    fill(VALID);
+    submit();
+
+    await vi.waitFor(() => expect(submitContact).toHaveBeenCalled());
+    expect(submitContact.mock.calls[0]![1]).toBeNull();
+  });
+
+  it("does not reach the network when validation fails, token or not", async () => {
+    fill({ name: "", email: "", message: "" });
+    submit();
+
+    expect(submitContact).not.toHaveBeenCalled();
   });
 });

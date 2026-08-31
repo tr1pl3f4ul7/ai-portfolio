@@ -68,7 +68,7 @@ describe("submitContact", () => {
   it("posts every field to /contact", async () => {
     fetchMock.mockResolvedValue(jsonResponse({ received: true, reference: "abc123" }));
 
-    await submitContact({ name: "Dana", email: "dana@example.com", message: "Hello." });
+    await submitContact({ name: "Dana", email: "dana@example.com", message: "Hello." }, "tok");
 
     const [url, init] = fetchMock.mock.calls[0]!;
     expect(url).toContain("/contact");
@@ -76,7 +76,19 @@ describe("submitContact", () => {
       name: "Dana",
       email: "dana@example.com",
       message: "Hello.",
+      turnstileToken: "tok",
     });
+  });
+
+  it("sends a null token when Turnstile produced none", async () => {
+    // The field is always present so the Worker can tell "no token" from "field
+    // missing because an old client is calling us".
+    fetchMock.mockResolvedValue(jsonResponse({ received: true, reference: "abc123" }));
+
+    await submitContact({ name: "Dana", email: "dana@example.com", message: "Hello." });
+
+    const [, init] = fetchMock.mock.calls[0]!;
+    expect(JSON.parse(init.body).turnstileToken).toBeNull();
   });
 
   it("returns the reference", async () => {
