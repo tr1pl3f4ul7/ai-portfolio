@@ -9,7 +9,63 @@ so no real `sentry_sdk.init` ever runs and nothing is ever sent.
 
 from __future__ import annotations
 
-from app import main, observability
+from fastapi import HTTPException
+
+from app import llm, main, observability, rag
+
+# --- Dropping expected upstream noise ---------------------------------------
+
+
+def _hint(exc: BaseException) -> dict:
+    return {"exc_info": (type(exc), exc, None)}
+
+
+def _chain(outer: BaseException, cause: BaseException) -> BaseException:
+    outer.__cause__ = cause
+    return outer
+
+
+def test_a_busy_free_tier_is_not_reported():
+    """LLMUnavailable is routine, not a defect — app/llm.py retries it fourteen
+    times before giving up, and the visitor already gets an honest 503. Paging
+    LJ as well just teaches him to ignore Sentry."""
+    hint = _hint(llm.LLMUnavailable("the Z.AI API is rate limiting this service"))
+    assert observability.scrub_event({}, hint) is None
+
+
+def test_it_is_dropped_through_the_real_exception_chain():
+    """What actually reaches Sentry from /chat: HTTPException from
+    ChatUnavailable from LLMUnavailable. The cause is two levels down."""
+    event = _chain(
+        HTTPException(status_code=503, detail="the Z.AI API timed out"),
+        _chain(rag.ChatUnavailable("the Z.AI API timed out"), llm.LLMUnavailable("timed out")),
+    )
+    assert observability.scrub_event({}, _hint(event)) is None
+
+
+def test_a_broken_deployment_is_still_reported():
+    """The narrowness is the point. This 503 has the same status code and the
+    same exception type as the one above, and somebody has to act on it."""
+    hint = _hint(rag.ChatUnavailable("vector store missing at /opt/.../vectors.db"))
+    assert observability.scrub_event({"request": {}}, hint) is not None
+
+
+def test_an_unrelated_error_is_still_reported():
+    assert observability.scrub_event({"request": {}}, _hint(RuntimeError("boom"))) is not None
+
+
+def test_an_event_with_no_exception_is_still_reported():
+    """Transactions arrive with no exc_info; the filter must not eat them."""
+    assert observability.scrub_event({"request": {}}, {}) is not None
+    assert observability.scrub_event({"request": {}}, None) is not None
+
+
+def test_a_cyclic_exception_chain_does_not_hang():
+    """before_send runs on every event; an unbounded walk would be a live hang."""
+    a, b = RuntimeError("a"), RuntimeError("b")
+    a.__cause__, b.__cause__ = b, a
+    assert observability.scrub_event({"request": {}}, _hint(a)) is not None
+
 
 # --- The scrubber -----------------------------------------------------------
 

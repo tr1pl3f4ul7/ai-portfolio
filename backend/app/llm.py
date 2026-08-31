@@ -77,12 +77,22 @@ class Profile:
 # amputating exactly that tail and turning calls that were about to succeed into
 # 503s. Free-tier capacity also swings widely minute to minute: the same profile
 # measured 5/5 in one run and 2/4 a minute earlier.
-FAST = Profile(max_attempts=14, deadline=15.0, read_timeout=25.0)
+#
+# `read_timeout` must stay comfortably under `deadline`, or a single hung
+# request outlasts the entire budget and there is no retry left to make — which
+# is what made timeouts effectively fatal before they were retryable. 10s is
+# still several times any single call observed (a lone generation is 1-2s; the
+# 10s figures above are whole retry loops, not one request).
+FAST = Profile(max_attempts=14, deadline=15.0, read_timeout=10.0)
 
 # Contact triage. Runs in a background task with nobody waiting, so it can keep
 # going long past what an endpoint could. At a 1-in-4 success rate, forty
 # attempts fail together about once in a hundred thousand times.
-PATIENT = Profile(max_attempts=40, deadline=120.0, read_timeout=60.0)
+#
+# 30s per request rather than 60s for the same reason: four hung requests should
+# each be abandoned and retried inside the budget, not two of them consume all
+# of it.
+PATIENT = Profile(max_attempts=40, deadline=120.0, read_timeout=30.0)
 
 
 # Statuses worth trying again. 429 is the one that actually happens — it is how
@@ -179,17 +189,25 @@ def complete(
         payload["response_format"] = {"type": "json_object"}
 
     started = time.monotonic()
-    response = None
+    response: httpx.Response | None = None
+    transport_failure: str | None = None
 
     for attempt in range(profile.max_attempts):
+        transport_failure = None
         try:
             response = _post(payload, profile.read_timeout)
-        except httpx.TimeoutException as exc:
-            raise LLMUnavailable("the Z.AI API timed out") from exc
-        except httpx.TransportError as exc:
-            raise LLMUnavailable("could not reach the Z.AI API") from exc
+        except httpx.TimeoutException:
+            # Retried, exactly like a 429. On a shared best-effort tier a hung
+            # request is no less ordinary than a rejected one, and treating it
+            # as fatal while retrying the 429 was an asymmetry with nothing
+            # behind it — observed in production as a 503 on the first attempt
+            # where a second would very likely have answered.
+            response, transport_failure = None, "the Z.AI API timed out"
+        except httpx.TransportError:
+            response, transport_failure = None, "could not reach the Z.AI API"
 
-        if response.status_code not in _RETRY_STATUSES:
+        # An answer, or a refusal there is no point repeating.
+        if response is not None and response.status_code not in _RETRY_STATUSES:
             break
         if attempt == profile.max_attempts - 1:
             break
@@ -197,6 +215,9 @@ def complete(
         if time.monotonic() - started >= profile.deadline:
             break
         _wait(_backoff(attempt))
+
+    if response is None:
+        raise LLMUnavailable(transport_failure or "the Z.AI API could not be reached")
 
     if response.status_code == 429:
         raise LLMUnavailable("the Z.AI API is rate limiting this service")

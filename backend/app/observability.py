@@ -24,8 +24,37 @@ from app.config import (
 _SENSITIVE_HEADERS = {"authorization", "cookie", "x-real-ip", "x-forwarded-for"}
 
 
-def scrub_event(event: dict, _hint: dict) -> dict:
-    """`before_send` hook: strip anything that could carry personal data.
+def _caused_by_upstream_model(hint: dict | None) -> bool:
+    """True if this event is only the free model tier being busy.
+
+    `LLMUnavailable` is not a defect — it is the documented, routine behaviour of
+    a shared free tier, which is why app/llm.py retries it fourteen times before
+    giving up. The visitor already gets an honest 503 saying the service is
+    briefly unavailable. Paging LJ about it as well trains him to ignore Sentry,
+    which is worse than not having Sentry.
+
+    Deliberately narrow. It matches on the *cause*, not the status code, so a
+    503 from a genuinely broken deployment — `vector store missing`, an unset
+    API key — still reports, because those are real and someone must act on them.
+    """
+    from app.llm import LLMUnavailable
+
+    exc = (hint or {}).get("exc_info", (None, None, None))[1]
+    # Bounded: a cycle in __cause__ would otherwise spin forever inside a hook
+    # that runs on every single event.
+    for _ in range(10):
+        if exc is None:
+            return False
+        if isinstance(exc, LLMUnavailable):
+            return True
+        exc = exc.__cause__ or exc.__context__
+    return False
+
+
+def scrub_event(event: dict, hint: dict) -> dict | None:
+    """`before_send` hook: drop expected upstream noise, then strip personal data.
+
+    Returning None discards the event entirely.
 
     `send_default_pii=False` already tells Sentry not to attach bodies, IPs or
     cookies. This is the belt to that braces: it runs on every event and removes
@@ -33,6 +62,9 @@ def scrub_event(event: dict, _hint: dict) -> dict:
     silently start leaking. Defence in depth for exactly the data this project
     took care to keep off the wire everywhere else.
     """
+    if _caused_by_upstream_model(hint):
+        return None
+
     request = event.get("request")
     if isinstance(request, dict):
         # The request body is the crown jewels here — a name, email and message,

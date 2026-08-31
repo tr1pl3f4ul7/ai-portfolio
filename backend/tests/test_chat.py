@@ -214,16 +214,49 @@ def _request() -> httpx.Request:
     return httpx.Request("POST", "https://api.z.ai/api/paas/v4/chat/completions")
 
 
-def test_connection_error_becomes_chat_unavailable(fake_llm):
+def test_a_persistent_connection_error_becomes_chat_unavailable(fake_llm):
     fake_llm(httpx.ConnectError("no route to host", request=_request()))
     with pytest.raises(rag.ChatUnavailable, match="could not reach"):
         rag.generate("prompt")
 
 
-def test_timeout_becomes_chat_unavailable(fake_llm):
-    fake_llm(httpx.ReadTimeout("too slow", request=_request()))
+def test_a_persistent_timeout_becomes_chat_unavailable(fake_llm):
+    calls = fake_llm(httpx.ReadTimeout("too slow", request=_request()))
     with pytest.raises(rag.ChatUnavailable, match="timed out"):
         rag.generate("prompt")
+    # Retried to exhaustion, not surrendered on the first one.
+    assert len(calls) == llm.FAST.max_attempts
+
+
+def test_a_timeout_is_retried_and_can_still_succeed(fake_llm):
+    """A hung request on a shared free tier is as ordinary as a rejected one.
+
+    Treating it as fatal while retrying a 429 was an asymmetry with nothing
+    behind it, and it showed up in production as a 503 on the first attempt.
+    """
+    calls = fake_llm(httpx.ReadTimeout("too slow", request=_request()), zai_response("An answer."))
+    assert rag.generate("prompt") == "An answer."
+    assert len(calls) == 2
+
+
+def test_a_connection_error_is_retried_too(fake_llm):
+    calls = fake_llm(httpx.ConnectError("no route", request=_request()), zai_response("An answer."))
+    assert rag.generate("prompt") == "An answer."
+    assert len(calls) == 2
+
+
+def test_a_timeout_followed_by_a_429_still_ends_in_a_clear_message(fake_llm):
+    """The two failure kinds interleave; the last one is what gets reported."""
+    fake_llm(httpx.ReadTimeout("too slow", request=_request()), zai_error(429))
+    with pytest.raises(rag.ChatUnavailable, match="rate limiting"):
+        rag.generate("prompt")
+
+
+def test_every_profile_can_retry_within_its_own_deadline(fake_llm):
+    """A per-request timeout at or above the deadline leaves no room to retry,
+    which is exactly what made a timeout fatal before. Pin the invariant."""
+    for profile in (llm.FAST, llm.PATIENT):
+        assert profile.read_timeout < profile.deadline
 
 
 def test_a_429_is_retried_and_can_still_succeed(fake_llm):
