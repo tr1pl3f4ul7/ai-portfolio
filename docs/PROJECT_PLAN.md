@@ -35,7 +35,7 @@ A portfolio site that deliberately demonstrates four distinct AI deployment patt
 | Browser (client-side) | Visitor's device | On-device LLM summarizes LJ's experience via WebLLM |
 | Edge | Cloudflare Workers AI | Pre-filters/classifies contact form submissions for spam before they reach the backend |
 | Server | Oracle Cloud VM (Ampere A1, 2 OCPU/12GB) | RAG chatbot (embeddings + vector store) answers questions about LJ's experience |
-| Cloud API | Anthropic Claude API | Contact form triage (classify, extract fields, draft reply) + RAG generation |
+| Cloud API | Z.AI GLM API | Contact form triage (classify, extract fields, draft reply) + RAG generation | <!-- was Anthropic Claude; changed by decision 67 -->
 
 Everything lives in one monorepo with path-filtered GitHub Actions CI/CD deploying to three separate targets (Oracle VM, Cloudflare Workers, GitHub Pages/Cloudflare Pages for web).
 
@@ -279,7 +279,7 @@ until Step 6.1 corrected it.
 - `ORACLE_VM_SSH_PRIVATE_KEY` — `backend-deploy.yml`'s SSH access to the VM
 - `ORACLE_VM_HOST` — the VM's public IP (SSH doesn't route through Cloudflare, so this stays the
   raw IP, not `api.ljubenvassilev.com`)
-- `ANTHROPIC_API_KEY`, `RESEND_API_KEY`, `CONTACT_NOTIFY_TO`, `SENTRY_DSN_BACKEND` — the backend's
+- `ZAI_API_KEY`, `RESEND_API_KEY`, `CONTACT_NOTIFY_TO`, `SENTRY_DSN_BACKEND` — the backend's
   runtime secrets. GitHub Secrets is the source of truth for these (decision 52):
   `backend-deploy.yml` writes them into `/etc/ai-portfolio.env` on the VM (root-owned, `chmod 640`)
   on every deploy, so rotating a key means updating it once in GitHub rather than remembering to

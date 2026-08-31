@@ -143,7 +143,7 @@ architectural reasoning is the actual content:
 | **Browser** | Visitor's device | On-device model (transformers.js) matches a question to LJ's real projects — no network, no API cost |
 | **Edge** | Cloudflare Workers AI | Spam/quality pre-filter on contact submissions |
 | **Server** | Oracle Ampere A1 VM (2 OCPU / 12 GB) | FastAPI RAG chatbot over a local vector store |
-| **Cloud API** | Anthropic Claude API | Contact triage + RAG answer generation |
+| **Cloud API** | Z.AI GLM-4.7-Flash | Contact triage + RAG answer generation |
 
 **Design consequence:** the VM has 12 GB total for nginx + FastAPI + the embedding model + the
 vector store. Keep the server side lightweight. If a change meaningfully increases memory
@@ -202,10 +202,32 @@ presenting the step for verification, and report the results alongside.
 
 | Layer | Unit | Integration | Notes |
 |---|---|---|---|
-| `backend/` | `pytest` for logic (classification parsing, retrieval ranking) | `TestClient`/`httpx` for endpoints | **Claude API calls are mocked in CI** — never live-call in automated tests |
+| `backend/` | `pytest` for logic (classification parsing, retrieval ranking) | `TestClient`/`httpx` for endpoints | Model calls are mocked by default; live calls are opt-in and marked — see below |
 | `edge/` | `vitest` + `@cloudflare/vitest-pool-workers` | local `wrangler dev` smoke test | Run before every deploy |
 | `web/` | component/interaction tests | manual cross-browser check | Project finder widget needs a real browser |
 | `infra/` | `shellcheck` + idempotency (run twice, no errors, no dupes) | `/health` smoke test after every deploy | |
+
+### Live model calls in tests
+
+Inference is free now (Z.AI GLM-4.7-Flash), so the old blanket ban on live-calling
+the model in automated tests is gone. What replaced it is narrower, because the
+binding constraint changed from money to **concurrency**:
+
+> GLM-4.7-Flash permits exactly **one in-flight request per account.**
+
+So live tests must never run in parallel — with each other, with a second CI job,
+or with anyone using the key at that moment. They are marked and run serially:
+
+```
+pytest -m "not live"          # default: fully mocked, hermetic, no key needed
+pytest -m live -p no:randomly # live contract tests, one at a time
+```
+
+Live tests earn their place only by checking what a mock **cannot**: that the
+model ID is real, that auth works, that `response_format: json_object` is
+accepted, that `TriageResult`'s schema actually round-trips. Never assert on the
+wording of generated prose — the model is not deterministic and such a test
+fails for no reason. Behaviour, parsing and failure paths stay mocked.
 
 ---
 

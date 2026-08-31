@@ -24,7 +24,7 @@ door.
 | **Browser** | Visitor's own device | On-device model (transformers.js) matches a question to my real projects — no network round-trip, no API cost |
 | **Edge** | Cloudflare Workers AI | Pre-filters/classifies contact form submissions for spam before they reach the backend |
 | **Server** | Oracle Cloud VM (Ampere A1, 2 OCPU / 12 GB) | RAG chatbot — embeddings + vector store — answers questions about my experience |
-| **Cloud API** | Anthropic Claude API | Contact form triage (classify, extract, draft reply) + RAG generation |
+| **Cloud API** | Z.AI GLM-4.7-Flash | Contact form triage (classify, extract, draft reply) + RAG generation |
 
 ## Repo layout
 
@@ -48,7 +48,7 @@ ai-portfolio/
 | Backend | Python + FastAPI |
 | Vector store | SQLite-vec |
 | Embeddings | `sentence-transformers/all-MiniLM-L6-v2` |
-| Contact triage / RAG generation | Claude API |
+| Contact triage / RAG generation | Z.AI GLM API |
 | Browser on-device model | transformers.js — all-MiniLM-L6-v2 (ONNX, embeddings only — retrieval, not generation) |
 | Edge pre-filter | Cloudflare Workers AI |
 | Reverse proxy / TLS | nginx + Let's Encrypt |
