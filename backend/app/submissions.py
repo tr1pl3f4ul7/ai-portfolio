@@ -8,7 +8,7 @@ vector store from scratch on every deploy, and a stranger's message is the last
 thing that should live inside a disposable build artefact.
 
 The store is the source of truth. A submission is written here **before** the
-Claude call and before the notification, so neither the model being down nor
+model call and before the notification, so neither the model being down nor
 Resend having a bad morning can lose somebody's message.
 
 Contains personal data — a real name, a real email, whatever they chose to

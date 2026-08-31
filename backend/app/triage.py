@@ -1,19 +1,28 @@
 """Contact-form triage.
 
-One Claude call per submission: classify it, pull out any company and role the
+One model call per submission: classify it, pull out any company and role the
 sender named, and draft a reply LJ could edit and send.
 
-The output shape is enforced by the API rather than parsed out of prose —
-`messages.parse` sends `TriageResult`'s JSON schema and validates the response
-against it. That turns a whole class of "what if the model returns something
-weird" into states the API will not produce, and leaves the genuinely possible
-failures: the call erroring, the model declining, validation failing.
+The output shape is a two-part arrangement, because Z.AI does not enforce
+schemas. `response_format: json_object` guarantees the response is *syntactically*
+valid JSON, and `TriageResult`'s schema is written into the system prompt to say
+what that JSON should contain. Neither half is a guarantee on its own, so the
+result is validated here before anyone sees it.
+
+That is weaker than the provider-enforced schema this replaced, where a
+mismatched shape was a state the API would not produce. It is now a state that
+can happen and is caught — see `TriageUnavailable`, which the caller already
+treats as non-fatal: the submission is stored and LJ is emailed either way.
 """
 
 from __future__ import annotations
 
-from app import rag
-from app.config import CORPUS_SUBJECT, TRIAGE_MAX_TOKENS, TRIAGE_MODEL
+import json
+
+from pydantic import ValidationError
+
+from app import llm
+from app.config import CORPUS_SUBJECT, TRIAGE_MAX_TOKENS
 from app.schemas import ContactRequest, TriageResult
 
 
@@ -56,7 +65,12 @@ tried it.
 automatically, so do not promise anything on {CORPUS_SUBJECT}'s behalf — no \
 availability, no rates, no commitments. Acknowledge, and say he will follow up.
 - Write the draft in {CORPUS_SUBJECT}'s voice, in the first person, as if he is \
-replying himself."""
+replying himself.
+
+Return one JSON object and nothing else — no prose before or after it, and no \
+code fence. It must validate against this JSON Schema:
+
+{json.dumps(TriageResult.model_json_schema(), indent=2)}"""
 
 
 def build_user_message(submission: ContactRequest) -> str:
@@ -72,35 +86,26 @@ def build_user_message(submission: ContactRequest) -> str:
 
 def triage(submission: ContactRequest) -> TriageResult:
     """Classify, extract and draft. Raises TriageUnavailable on any failure."""
-    import anthropic
-
-    # Via the module, not a `from app.rag import get_client` binding — the
-    # shared client is monkeypatched in tests, and a name bound at import time
-    # would keep pointing at the real one.
-    client = rag.get_client()
     try:
-        response = client.messages.parse(
-            model=TRIAGE_MODEL,
+        raw = llm.complete(
+            SYSTEM_PROMPT,
+            build_user_message(submission),
             max_tokens=TRIAGE_MAX_TOKENS,
-            system=SYSTEM_PROMPT,
-            messages=[{"role": "user", "content": build_user_message(submission)}],
-            output_format=TriageResult,
+            profile=llm.PATIENT,
+            json_object=True,
         )
-    except anthropic.APIConnectionError as exc:
-        raise TriageUnavailable("could not reach the Claude API") from exc
-    except anthropic.RateLimitError as exc:
-        raise TriageUnavailable("the Claude API is rate limiting this service") from exc
-    except anthropic.APIStatusError as exc:
-        # The body can echo the submission back; only the status is safe to keep.
-        raise TriageUnavailable(f"the Claude API returned {exc.status_code}") from exc
+    except llm.LLMRefused as exc:
+        raise TriageUnavailable("the model declined to triage that submission") from exc
+    except llm.LLMUnavailable as exc:
+        # Already carries a status or a reason, and never a response body.
+        raise TriageUnavailable(str(exc)) from exc
 
-    if response.stop_reason == "refusal":
-        raise TriageUnavailable("the model declined to triage that submission")
-
-    # Populated only when the response validated against the schema. A None here
-    # means the structured-output contract was not met, which is a failure and
-    # not something to paper over with defaults.
-    result = response.parsed_output
-    if result is None:
-        raise TriageUnavailable("the model returned no parseable triage result")
-    return result
+    try:
+        return TriageResult.model_validate_json(raw)
+    except ValidationError:
+        # `from None` deliberately. A pydantic ValidationError quotes the input
+        # that failed, and that input is the model's reading of a stranger's
+        # name, email and message. Chaining it would carry the submission into
+        # every traceback and, one day, into Sentry — which app/observability.py
+        # goes to some length to prevent everywhere else.
+        raise TriageUnavailable("the model returned no parseable triage result") from None

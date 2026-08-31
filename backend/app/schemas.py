@@ -72,11 +72,13 @@ class ContactResponse(BaseModel):
 
 
 class TriageResult(BaseModel):
-    """What Claude returns for a submission.
+    """What the model returns for a submission.
 
-    Doubles as the JSON schema sent to the API via `messages.parse`, so the
-    field names and docstrings below are part of the prompt in effect — the
-    model sees them. Never returned to the sender.
+    `model_json_schema()` of this class is written verbatim into the triage
+    system prompt, so the field names and descriptions below are literally part
+    of the prompt — the model reads them. Z.AI guarantees valid JSON but not
+    conformance to a schema, so this class is also what validates the reply.
+    Never returned to the sender.
     """
 
     category: Literal[

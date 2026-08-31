@@ -76,7 +76,7 @@ def build_body(reference: str, submission: ContactRequest, result: TriageResult 
             "",
             result.draft_reply,
             "",
-            "Written by Claude from the message above. Read it before you send it.",
+            "Drafted by the model from the message above. Read it before you send it.",
         ]
 
     lines += ["", "-" * 60, f"reference {reference}"]

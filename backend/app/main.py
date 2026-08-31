@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import BackgroundTasks, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
@@ -16,7 +16,6 @@ from pydantic import BaseModel
 from app import content, notify, observability, rag, ratelimit, submissions, triage
 from app.config import (
     ALLOWED_ORIGINS,
-    CONTACT_DAILY_LIMIT_PER_IP,
     CONTACT_DAILY_LIMIT_TOTAL,
     RESUME_PDF_PATH,
 )
@@ -44,10 +43,7 @@ limiter = ratelimit.DailyRateLimiter()
 # Separate counters, deliberately. Chat traffic must not be able to exhaust the
 # contact form — being unable to receive an opportunity is a worse outcome than
 # being unable to answer a question about one.
-contact_limiter = ratelimit.DailyRateLimiter(
-    per_ip_limit=CONTACT_DAILY_LIMIT_PER_IP,
-    total_limit=CONTACT_DAILY_LIMIT_TOTAL,
-)
+contact_limiter = ratelimit.DailyRateLimiter(total_limit=CONTACT_DAILY_LIMIT_TOTAL)
 
 
 @asynccontextmanager
@@ -99,7 +95,7 @@ class HealthResponse(BaseModel):
 def health() -> HealthResponse:
     """Report that the process is up.
 
-    Deliberately dependency-free: no Claude call, no vector store, no disk I/O.
+    Deliberately dependency-free: no model call, no vector store, no disk I/O.
     An external uptime monitor and every post-deploy smoke test gate on this
     endpoint, so it must stay fast and must not fail because something
     downstream is unhealthy. Checks for those dependencies belong in a separate
@@ -171,17 +167,19 @@ def resume() -> FileResponse:
     response_model=ChatResponse,
     responses={
         429: {"model": ErrorResponse, "description": "Daily request limit reached"},
-        503: {"model": ErrorResponse, "description": "Retrieval or the Claude API is unavailable"},
+        503: {"model": ErrorResponse, "description": "Retrieval or the Z.AI API is unavailable"},
     },
 )
-def chat(payload: ChatRequest, request: Request) -> ChatResponse:
+def chat(payload: ChatRequest) -> ChatResponse:
     """Answer a visitor's question from the corpus.
 
-    Rate limiting comes first: an over-limit request must not reach the Claude
-    API, since spending money on it is the thing the limit exists to prevent.
+    Rate limiting comes first, so an over-limit request costs nothing but the
+    counter check. Inference is free now, so this ceiling is no longer a spend
+    cap — it is a brake on how hard one day can hammer a 12 GB box that is also
+    holding the embedding model.
     """
     try:
-        limiter.check_and_count(ratelimit.client_ip(request))
+        limiter.check_and_count()
     except ratelimit.RateLimited as exc:
         raise HTTPException(
             status_code=429,
@@ -208,21 +206,26 @@ def chat(payload: ChatRequest, request: Request) -> ChatResponse:
         503: {"model": ErrorResponse, "description": "The submission could not be stored"},
     },
 )
-def contact(payload: ContactRequest, request: Request) -> ContactResponse:
-    """Accept a contact submission, triage it, and tell LJ about it.
+def contact(payload: ContactRequest, background: BackgroundTasks) -> ContactResponse:
+    """Accept a contact submission, then triage and notify out of band.
 
     The order matters more than anything else here. The message is written to
-    the store **first**, before any network call, so that neither Claude being
-    down nor Resend being down can lose it. Both of those steps are then
-    best-effort: they log and continue rather than failing the request, because
-    a visitor who typed out a real enquiry should not be told to try again over
-    something that already succeeded from their side.
+    the store **first**, before any network call, so that neither the model
+    being down nor Resend being down can lose it. Only a failure to store is
+    fatal — at that point there is genuinely nothing holding their message, and
+    saying so honestly beats a 200 that means nothing.
 
-    Only a failure to store is fatal — at that point there is genuinely nothing
-    holding their message, and saying so honestly beats a 200 that means nothing.
+    Everything after the store runs in a background task, so the sender gets
+    their acknowledgement in milliseconds. That is not a nicety. Three calls in
+    four to the free model come back "overloaded" (config.py has the numbers),
+    so triage only succeeds by retrying — up to forty attempts over two minutes.
+    That budget is affordable *precisely because* nobody is waiting on it.
+    Inline, the same reliability would mean a visitor watching a spinner past
+    nginx's 60-second proxy timeout, which reads as broken however well it
+    actually worked.
     """
     try:
-        contact_limiter.check_and_count(ratelimit.client_ip(request))
+        contact_limiter.check_and_count()
     except ratelimit.RateLimited as exc:
         raise HTTPException(
             status_code=429,
@@ -235,6 +238,18 @@ def contact(payload: ContactRequest, request: Request) -> ContactResponse:
     except Exception as exc:  # Catching broadly here is deliberate — the one failure worth surfacing
         raise HTTPException(status_code=503, detail="could not store the submission") from exc
 
+    background.add_task(_triage_and_notify, reference, payload)
+    return ContactResponse(received=True, reference=reference)
+
+
+def _triage_and_notify(reference: str, payload: ContactRequest) -> None:
+    """Classify the submission and email LJ. Runs after the response is sent.
+
+    Both steps are best-effort and log rather than raise: there is no longer a
+    caller to fail, and the submission is already safely stored either way. If
+    the process dies before this runs, the row is still there with
+    `notified = 0`, which is the same recoverable state a failed send leaves.
+    """
     result = None
     try:
         result = triage.triage(payload)
@@ -249,8 +264,6 @@ def contact(payload: ContactRequest, request: Request) -> ContactResponse:
     except notify.NotificationFailed as exc:
         # Recoverable by hand: the row is in the store with notified = 0.
         print(f"warning: notification failed for {reference}: {exc}")
-
-    return ContactResponse(received=True, reference=reference)
 
 
 @app.get("/debug/error", include_in_schema=False)

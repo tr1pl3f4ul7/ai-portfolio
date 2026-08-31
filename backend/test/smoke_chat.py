@@ -1,12 +1,12 @@
-"""Manual smoke test for /chat against the REAL Claude API.
+"""Manual smoke test for /chat against the REAL Z.AI API.
 
     ./run-chat.sh                 # terminal 1: serve the backend
     python smoke_chat.py          # terminal 2: ask it real questions
 
-This is the one place in the project that spends money on the Claude API. It is
-run by hand and is **never** part of the automated suite — it lives in test/
-rather than tests/ so pytest does not collect it, alongside the other manual
-scripts.
+Run by hand against a real server. Distinct from `pytest -m live`, which
+exercises the client directly: this drives the whole HTTP stack, so it is what
+proves nginx, the systemd unit and CORS are right on the VM. It lives in test/
+rather than tests/ so pytest never collects it.
 
 Everything it needs is HTTP, so it runs natively on Windows even though the
 server it talks to has to run in the Linux container (sqlite-vec).
@@ -95,7 +95,7 @@ def main() -> int:
         return 1
 
     print(f"\033[1;32m{url} is up\033[0m")
-    print("\033[2mThis calls the real Claude API and costs real money.\033[0m")
+    print("\033[2mThis calls the real Z.AI API. Free, but rate-limited - expect retries.\033[0m")
 
     failures = sum(not ask(url, q) for q in questions)
 

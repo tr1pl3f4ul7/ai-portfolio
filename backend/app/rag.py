@@ -3,21 +3,19 @@
 The pipeline is four steps, each a separate function so each can be tested
 without the one after it:
 
-    embed the question -> retrieve top-k chunks -> build a prompt -> call Claude
+    embed the question -> retrieve top-k chunks -> build a prompt -> call the model
 
-The Claude call is the only part that touches the network, and it is the only
-part mocked in the test suite.
+The model call is the only part that touches the network, and it is the only
+part mocked in the test suite. It lives in app/llm.py, shared with triage.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from functools import lru_cache
 
+from app import llm
 from app.config import (
     ANSWER_MAX_TOKENS,
-    ANTHROPIC_API_KEY,
-    ANTHROPIC_MODEL,
     CORPUS_SUBJECT,
     DB_PATH,
     TOP_K,
@@ -74,20 +72,6 @@ class Answer:
     sources: list[SearchResult]
 
 
-@lru_cache(maxsize=1)
-def get_client():
-    """Return the shared Anthropic client.
-
-    Cached because constructing one opens a connection pool, and imported lazily
-    so that modules needing only chunking or config never import the SDK.
-    """
-    import anthropic
-
-    if not ANTHROPIC_API_KEY:
-        raise ChatUnavailable("ANTHROPIC_API_KEY is not set")
-    return anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-
-
 def retrieve(question: str, k: int = TOP_K) -> list[SearchResult]:
     """Embed the question and return the k nearest chunks.
 
@@ -126,32 +110,15 @@ def build_user_message(question: str, results: list[SearchResult]) -> str:
 
 
 def generate(user_message: str) -> str:
-    """Send the prompt to Claude and return the answer text."""
-    import anthropic
-
-    client = get_client()
+    """Send the prompt to the model and return the answer text."""
     try:
-        message = client.messages.create(
-            model=ANTHROPIC_MODEL,
-            max_tokens=ANSWER_MAX_TOKENS,
-            system=SYSTEM_PROMPT,
-            messages=[{"role": "user", "content": user_message}],
-        )
-    except anthropic.APIConnectionError as exc:
-        raise ChatUnavailable("could not reach the Claude API") from exc
-    except anthropic.RateLimitError as exc:
-        raise ChatUnavailable("the Claude API is rate limiting this service") from exc
-    except anthropic.APIStatusError as exc:
-        # The status is safe to surface; the body may echo the request, so it
-        # does not go anywhere a visitor can read it.
-        raise ChatUnavailable(f"the Claude API returned {exc.status_code}") from exc
+        text = llm.complete(SYSTEM_PROMPT, user_message, max_tokens=ANSWER_MAX_TOKENS)
+    except llm.LLMRefused as exc:
+        raise ChatUnavailable("the model declined to answer that question") from exc
+    except llm.LLMUnavailable as exc:
+        # Already carries a status or a reason, and never a response body.
+        raise ChatUnavailable(str(exc)) from exc
 
-    # Claude 4 models can decline a request outright. Check before reading
-    # content, which is empty or partial in that case.
-    if message.stop_reason == "refusal":
-        raise ChatUnavailable("the model declined to answer that question")
-
-    text = "".join(block.text for block in message.content if block.type == "text").strip()
     if not text:
         raise ChatUnavailable("the model returned an empty answer")
     return text
