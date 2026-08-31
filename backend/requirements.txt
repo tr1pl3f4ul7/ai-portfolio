@@ -29,7 +29,7 @@ fastapi==0.115.6
 # leave local and the VM running different server stacks — the exact
 # divergence decision 23 removed by aligning Python to 3.12. The extra buys
 # faster HTTP parsing and a faster event loop, neither of which is
-# measurable here: every real request waits on a network call to the Claude
+# measurable here: every real request waits on a network call to the Z.AI
 # API.
 uvicorn==0.34.0
 
@@ -43,8 +43,12 @@ sentence-transformers==3.3.1
 # the VM and in CI, never natively here.
 sqlite-vec==0.1.9
 
-# Claude API client. Answer generation for /chat, and contact triage.
-anthropic==0.119.0
+# HTTP client for the Z.AI GLM API — answer generation for /chat, and contact
+# triage. Z.AI is a plain REST endpoint behind a bearer token, so there is no
+# vendor SDK to install: this replaces the Anthropic client rather than adding
+# to it. httpx was already present as a transitive dependency of that client
+# and as a test dependency for starlette's TestClient; this makes it explicit.
+httpx==0.28.1
 
 # Backs pydantic's EmailStr on the contact form. The email address is how LJ
 # replies to an enquiry, so a malformed one is a lost opportunity rather than a

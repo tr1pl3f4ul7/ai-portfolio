@@ -1,25 +1,24 @@
 """Tests for POST /chat and the RAG pipeline behind it.
 
-The Claude API is mocked throughout — see conftest.py, which fails any test that
-tries to construct a real client. Retrieval is mocked too, so these run natively
-on the dev machine where sqlite-vec has no wheel; the real end-to-end retrieval
-is covered by test_retrieval.py in the Linux container.
+The Z.AI API is mocked throughout — see conftest.py, which fails any test that
+tries to POST to it. Retrieval is mocked too, so these run natively on the dev
+machine where sqlite-vec has no wheel; the real end-to-end retrieval is covered
+by test_retrieval.py in the Linux container.
 
 The one test against the live API is backend/test/smoke_chat.py, run by hand.
 """
 
 from __future__ import annotations
 
-import anthropic
 import httpx
 import pytest
 from fastapi.testclient import TestClient
 
-from app import main, rag
-from app.config import ANTHROPIC_MODEL, MAX_QUESTION_CHARS
+from app import llm, main, rag
+from app.config import MAX_QUESTION_CHARS, ZAI_MODEL
 from app.ratelimit import DailyRateLimiter
 from app.store import SearchResult
-from tests.conftest import FakeMessage, FakeTextBlock
+from tests.conftest import zai_error, zai_response
 
 client = TestClient(main.app)
 
@@ -127,61 +126,84 @@ def test_user_message_says_so_when_nothing_was_retrieved():
     assert "no relevant sections were found" in message
 
 
-def test_request_uses_the_configured_model_and_token_ceiling(fake_claude):
-    fake = fake_claude(FakeMessage(content=[FakeTextBlock("An answer.")]))
+def test_request_uses_the_configured_model_and_token_ceiling(fake_llm):
+    calls = fake_llm(zai_response("An answer."))
     rag.generate("a prompt")
 
-    call = fake.messages.calls[0]
-    assert call["model"] == ANTHROPIC_MODEL
-    assert call["max_tokens"] == 1024
-    assert call["system"] == rag.SYSTEM_PROMPT
-    assert call["messages"] == [{"role": "user", "content": "a prompt"}]
+    assert calls[0]["model"] == ZAI_MODEL
+    assert calls[0]["max_tokens"] == 1024
+    assert calls[0]["messages"] == [
+        {"role": "system", "content": rag.SYSTEM_PROMPT},
+        {"role": "user", "content": "a prompt"},
+    ]
 
 
-def test_haiku_is_the_configured_model():
-    """LJ chose Haiku for /chat. A silent change here changes the bill."""
-    assert ANTHROPIC_MODEL == "claude-haiku-4-5"
+def test_thinking_is_disabled(fake_llm):
+    """GLM-4.7-Flash bills hidden reasoning against max_tokens before it emits
+    any answer — 96 reasoning tokens for a 4-token reply, measured. Left on, it
+    truncates long answers and half-writes triage JSON. Pin it off."""
+    calls = fake_llm(zai_response("An answer."))
+    rag.generate("a prompt")
+    assert calls[0]["thinking"] == {"type": "disabled"}
+
+
+def test_chat_does_not_ask_for_json_mode(fake_llm):
+    """JSON mode is triage's business. An answer for a visitor stays prose."""
+    calls = fake_llm(zai_response("An answer."))
+    rag.generate("a prompt")
+    assert "response_format" not in calls[0]
+
+
+def test_the_free_flash_model_is_configured():
+    """GLM-4.7-Flash is one of two models Z.AI prices at zero. Pin it.
+
+    A silent change here either starts a bill or changes the concurrency
+    ceiling the retry logic is built around.
+    """
+    assert ZAI_MODEL == "glm-4.7-flash"
 
 
 # --- Response parsing -------------------------------------------------------
 
 
-def test_answer_text_is_extracted_from_the_content_blocks(fake_claude):
-    fake_claude(FakeMessage(content=[FakeTextBlock("He works at AI Talent.")]))
+def test_answer_text_is_returned(fake_llm):
+    fake_llm(zai_response("He works at AI Talent."))
     assert rag.generate("prompt") == "He works at AI Talent."
 
 
-def test_multiple_text_blocks_are_joined(fake_claude):
-    fake_claude(FakeMessage(content=[FakeTextBlock("One. "), FakeTextBlock("Two.")]))
-    assert rag.generate("prompt") == "One. Two."
+def test_surrounding_whitespace_is_stripped(fake_llm):
+    fake_llm(zai_response("  He works at AI Talent.\n"))
+    assert rag.generate("prompt") == "He works at AI Talent."
 
 
-def test_non_text_blocks_are_ignored(fake_claude):
-    """Content is a union; anything that is not a text block must not crash us."""
-
-    class OtherBlock:
-        type = "thinking"
-
-    fake_claude(FakeMessage(content=[OtherBlock(), FakeTextBlock("Answer.")]))
-    assert rag.generate("prompt") == "Answer."
-
-
-def test_empty_content_is_an_error_not_an_empty_answer(fake_claude):
-    fake_claude(FakeMessage(content=[]))
+def test_empty_content_is_an_error_not_an_empty_answer(fake_llm):
+    fake_llm(zai_response(""))
     with pytest.raises(rag.ChatUnavailable, match="empty answer"):
         rag.generate("prompt")
 
 
-def test_whitespace_only_answer_is_an_error(fake_claude):
-    fake_claude(FakeMessage(content=[FakeTextBlock("   \n  ")]))
+def test_whitespace_only_answer_is_an_error(fake_llm):
+    fake_llm(zai_response("   \n  "))
     with pytest.raises(rag.ChatUnavailable, match="empty answer"):
         rag.generate("prompt")
 
 
-def test_refusal_is_reported_rather_than_read_as_an_answer(fake_claude):
-    """stop_reason=refusal leaves content empty or partial — check it first."""
-    fake_claude(FakeMessage(content=[FakeTextBlock("partial")], stop_reason="refusal"))
+def test_refusal_is_reported_rather_than_read_as_an_answer(fake_llm):
+    """A content filter arrives as finish_reason, not an error status.
+
+    Content is empty or partial in that case, so it has to be checked before
+    the text is read — otherwise a truncated refusal reaches a visitor as if it
+    were the answer.
+    """
+    fake_llm(zai_response("partial", finish_reason="sensitive"))
     with pytest.raises(rag.ChatUnavailable, match="declined"):
+        rag.generate("prompt")
+
+
+def test_a_response_of_the_wrong_shape_is_an_error(fake_llm):
+    """A 200 that is not a chat completion must not be read as an answer."""
+    fake_llm(httpx.Response(200, json={"unexpected": True}, request=_request()))
+    with pytest.raises(rag.ChatUnavailable, match="unreadable"):
         rag.generate("prompt")
 
 
@@ -189,47 +211,77 @@ def test_refusal_is_reported_rather_than_read_as_an_answer(fake_claude):
 
 
 def _request() -> httpx.Request:
-    return httpx.Request("POST", "https://api.anthropic.com/v1/messages")
+    return httpx.Request("POST", "https://api.z.ai/api/paas/v4/chat/completions")
 
 
-def test_connection_error_becomes_chat_unavailable(fake_claude):
-    fake_claude(anthropic.APIConnectionError(request=_request()))
+def test_connection_error_becomes_chat_unavailable(fake_llm):
+    fake_llm(httpx.ConnectError("no route to host", request=_request()))
     with pytest.raises(rag.ChatUnavailable, match="could not reach"):
         rag.generate("prompt")
 
 
-def test_rate_limit_from_the_api_becomes_chat_unavailable(fake_claude):
-    response = httpx.Response(429, request=_request())
-    fake_claude(anthropic.RateLimitError("slow down", response=response, body=None))
-    with pytest.raises(rag.ChatUnavailable, match="rate limiting"):
+def test_timeout_becomes_chat_unavailable(fake_llm):
+    fake_llm(httpx.ReadTimeout("too slow", request=_request()))
+    with pytest.raises(rag.ChatUnavailable, match="timed out"):
         rag.generate("prompt")
 
 
-def test_api_error_body_is_not_leaked(fake_claude):
+def test_a_429_is_retried_and_can_still_succeed(fake_llm):
+    """The whole reason retries exist: concurrency on this model is 1.
+
+    Two visitors asking at once is ordinary traffic, not an error, so losing
+    the slot on the first attempt must not become a 503.
+    """
+    calls = fake_llm(zai_error(429), zai_response("An answer."))
+    assert rag.generate("prompt") == "An answer."
+    assert len(calls) == 2
+
+
+def test_a_persistent_429_gives_up_rather_than_retrying_forever(fake_llm):
+    calls = fake_llm(zai_error(429))
+    with pytest.raises(rag.ChatUnavailable, match="rate limiting"):
+        rag.generate("prompt")
+    assert len(calls) == llm.FAST.max_attempts
+
+
+def test_chat_uses_the_fast_profile_not_the_patient_one(fake_llm):
+    """A visitor must never be held for triage's two-minute retry budget."""
+    calls = fake_llm(zai_error(429))
+    with pytest.raises(rag.ChatUnavailable):
+        rag.generate("prompt")
+    assert len(calls) < llm.PATIENT.max_attempts
+
+
+def test_api_error_body_is_not_leaked(fake_llm):
     """The error body can echo the prompt; only the status code may surface."""
-    response = httpx.Response(400, request=_request())
-    fake_claude(
-        anthropic.BadRequestError("secret prompt echoed back", response=response, body=None)
-    )
+    fake_llm(zai_error(400))
     with pytest.raises(rag.ChatUnavailable) as exc:
         rag.generate("prompt")
     assert "400" in str(exc.value)
-    assert "secret prompt echoed back" not in str(exc.value)
+    assert "Northwind" not in str(exc.value)
+
+
+def test_a_400_is_not_retried(fake_llm):
+    """A bad request will be just as bad the second time."""
+    calls = fake_llm(zai_error(400))
+    with pytest.raises(rag.ChatUnavailable):
+        rag.generate("prompt")
+    assert len(calls) == 1
 
 
 def test_missing_api_key_is_reported_clearly(monkeypatch):
-    monkeypatch.setattr(rag, "ANTHROPIC_API_KEY", "")
-    rag.get_client.cache_clear()
-    with pytest.raises(rag.ChatUnavailable, match="ANTHROPIC_API_KEY"):
-        rag.get_client()
+    monkeypatch.setattr(llm, "ZAI_API_KEY", "")
+    llm.get_client.cache_clear()
+    with pytest.raises(llm.LLMUnavailable, match="ZAI_API_KEY"):
+        llm.get_client()
 
 
 # --- The endpoint -----------------------------------------------------------
 
 
-def test_chat_returns_the_answer_and_its_sources(retrieval, fake_claude):
+def test_chat_returns_the_answer_and_its_sources(retrieval, fake_llm):
     retrieval()
-    fake_claude(FakeMessage(content=[FakeTextBlock("He works at AI Talent.")]))
+    fake_llm(zai_response("He works at AI Talent."))
 
     response = client.post("/chat", json={"question": "Who does he work for?"})
 
@@ -243,21 +295,21 @@ def test_chat_returns_the_answer_and_its_sources(retrieval, fake_claude):
     }
 
 
-def test_chat_passes_the_retrieved_context_to_claude(retrieval, fake_claude):
+def test_chat_passes_the_retrieved_context_to_the_model(retrieval, fake_llm):
     """The endpoint must actually ground the call, not just call the model."""
     retrieval()
-    fake = fake_claude(FakeMessage(content=[FakeTextBlock("An answer.")]))
+    calls = fake_llm(zai_response("An answer."))
 
     client.post("/chat", json={"question": "Who does he work for?"})
 
-    sent = fake.messages.calls[0]["messages"][0]["content"]
+    sent = calls[0]["messages"][1]["content"]
     assert "He joined in April 2026." in sent
     assert "Visitor's question: Who does he work for?" in sent
 
 
-def test_chat_still_answers_when_nothing_is_retrieved(retrieval, fake_claude):
+def test_chat_still_answers_when_nothing_is_retrieved(retrieval, fake_llm):
     retrieval([])
-    fake_claude(FakeMessage(content=[FakeTextBlock("I do not have that detail.")]))
+    fake_llm(zai_response("I do not have that detail."))
 
     response = client.post("/chat", json={"question": "What is his shoe size?"})
 
@@ -296,8 +348,12 @@ def test_chat_rejects_get():
     assert client.get("/chat").status_code == 405
 
 
-def test_validation_failure_does_not_call_claude(fake_claude):
-    """A rejected request must cost nothing."""
-    fake = fake_claude(FakeMessage(content=[FakeTextBlock("nope")]))
+def test_validation_failure_does_not_call_the_model(fake_llm):
+    """A rejected request must not reach the model.
+
+    No longer about money — it is about the single concurrency slot, which a
+    malformed request has no business occupying.
+    """
+    calls = fake_llm(zai_response("nope"))
     client.post("/chat", json={"question": ""})
-    assert fake.messages.calls == []
+    assert calls == []

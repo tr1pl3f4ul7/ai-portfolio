@@ -1,19 +1,23 @@
-"""Manual smoke test for /contact against the REAL Claude API and REAL Resend.
+"""Manual smoke test for /contact against the REAL Z.AI API and REAL Resend.
 
     ./run-chat.sh                    # terminal 1: serve the backend
     python smoke_contact.py          # terminal 2: submit a test message
 
-This one both spends money and sends actual email to LJ's inbox. Like
-smoke_chat.py it is run by hand, never collected by pytest, and lives in test/
-rather than tests/ for exactly that reason.
+This one sends actual email to LJ's inbox. Like smoke_chat.py it is run by
+hand, never collected by pytest, and lives in test/ rather than tests/ for
+exactly that reason.
+
+Note that /contact now returns *before* triage runs — classification and the
+email both happen in a background task — so a 200 here means "stored", not
+"triaged". Give it a minute before checking the inbox.
 
 Stdlib only — any `python` on PATH will do.
 
     python smoke_contact.py --url http://140.238.207.203   # against the VM
     python smoke_contact.py --case spam                    # just one scenario
 
-It proves the two things the mocked suite cannot: that the Claude API accepts
-the JSON schema derived from TriageResult, and that Resend actually delivers.
+It proves the two things the mocked suite cannot: that a real model returns
+JSON matching TriageResult's schema, and that Resend actually delivers.
 """
 
 from __future__ import annotations
@@ -105,7 +109,7 @@ def main() -> int:
         return 1
 
     print(f"\033[1;32m{url} is up\033[0m")
-    print("\033[2mThis calls the real Claude API and sends real email.\033[0m")
+    print("\033[2mThis calls the real Z.AI API and sends real email.\033[0m")
 
     failures = sum(not submit(url, label, payload) for label, payload in cases.items())
 

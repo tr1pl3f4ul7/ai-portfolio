@@ -13,7 +13,7 @@
 # command line, the shell history, or this script's output.
 #
 # Usage:  ./run-chat.sh
-# Requires: docker, backend/.env containing ANTHROPIC_API_KEY
+# Requires: docker, backend/.env containing ZAI_API_KEY
 set -euo pipefail
 
 readonly IMAGE="ai-portfolio-backend-test:latest"
@@ -33,7 +33,7 @@ else
 fi
 
 if [ ! -f "${BACKEND}/.env" ]; then
-  printf '\033[1;31mbackend/.env not found — it must contain ANTHROPIC_API_KEY\033[0m\n' >&2
+  printf '\033[1;31mbackend/.env not found — it must contain ZAI_API_KEY\033[0m\n' >&2
   exit 1
 fi
 

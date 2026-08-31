@@ -2,17 +2,17 @@
 
 Two autouse guards apply to every test in this directory:
 
-- `no_live_anthropic_client` replaces `anthropic.Anthropic` with a class that
-  refuses to be constructed.
+- `no_live_llm_call` replaces the POST inside `app.llm` with one that refuses
+  to run.
 - `no_live_resend_call` replaces the raw POST inside `app.notify` with one that
   refuses to run.
 
 Between them, any code path that would reach the network fails loudly with a
-clear message instead of quietly spending money or emailing a real person — the
-CLAUDE.md rule made mechanical rather than remembered.
+clear message instead of quietly calling a real API or emailing a real person —
+the CLAUDE.md rule made mechanical rather than remembered.
 
-Tests that need either patch `rag.get_client` or use `fake_resend`; neither
-goes near the replaced functions.
+Tests that need either use the `fake_llm` or `fake_resend` fixture; neither goes
+near the replaced functions.
 """
 
 from __future__ import annotations
@@ -34,28 +34,43 @@ import os
 # load_dotenv(override=False) in config.py will not overwrite an existing value,
 # so setting these wins over backend/.env.
 # ---------------------------------------------------------------------------
-DUMMY_ANTHROPIC_KEY = "sk-ant-api03-TEST-KEY-NOT-REAL"
+DUMMY_ZAI_KEY = "zai-TEST-KEY-NOT-REAL"
 DUMMY_RESEND_KEY = "re_TEST_KEY_NOT_REAL"
 
-os.environ["ANTHROPIC_API_KEY"] = DUMMY_ANTHROPIC_KEY
+# Captured before the dummy overwrites it, because `-m live` tests need the real
+# one and this is the last moment it is still in the environment. In CI it comes
+# from the GitHub Actions secret; locally, from backend/.env, which config.py has
+# not read yet at this point — so read it here rather than importing config.
+REAL_ZAI_KEY = os.environ.get("ZAI_API_KEY", "")
+if not REAL_ZAI_KEY:
+    from dotenv import dotenv_values
+
+    REAL_ZAI_KEY = dotenv_values(
+        os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env")
+    ).get("ZAI_API_KEY", "")
+
+os.environ["ZAI_API_KEY"] = DUMMY_ZAI_KEY
 os.environ["RESEND_API_KEY"] = DUMMY_RESEND_KEY
 os.environ["CONTACT_NOTIFY_TO"] = "nobody@example.com"
 os.environ["SENTRY_DSN"] = ""
 
-from dataclasses import dataclass, field
-
+import httpx
 import pytest
 
-from app import config, notify, observability, rag
+from app import config, llm, notify, observability
 
 
 class LiveApiCallAttempted(AssertionError):
-    """Raised if a test tries to reach the real Anthropic API or Resend."""
+    """Raised if a test tries to reach the real Z.AI API or Resend."""
 
 
 @pytest.fixture(autouse=True)
-def no_real_credentials(monkeypatch):
+def no_real_credentials(request, monkeypatch):
     """Belt to the module-level braces above.
+
+    Steps aside for `-m live` tests, which exist precisely to use the real key —
+    and skips them outright if there isn't one, rather than letting them fail as
+    though the code were broken.
 
     The environment is already clean by the time this runs; what this covers is
     the *bound copies* — modules that did `from app.config import X` hold their
@@ -65,30 +80,46 @@ def no_real_credentials(monkeypatch):
     failed in, which is exactly how a real key reached a terminal once already.
     Removing the credential from the process beats intercepting its use.
     """
-    monkeypatch.setattr(config, "ANTHROPIC_API_KEY", DUMMY_ANTHROPIC_KEY)
+    if "live" in request.keywords:
+        if not REAL_ZAI_KEY:
+            pytest.skip("ZAI_API_KEY is not set — live tests need a real key")
+        monkeypatch.setattr(config, "ZAI_API_KEY", REAL_ZAI_KEY)
+        monkeypatch.setattr(llm, "ZAI_API_KEY", REAL_ZAI_KEY)
+        llm.get_client.cache_clear()
+        # Resend stays fake even here. Nothing in the live suite should email
+        # a real person.
+        monkeypatch.setattr(notify, "RESEND_API_KEY", DUMMY_RESEND_KEY)
+        monkeypatch.setattr(notify, "CONTACT_NOTIFY_TO", "nobody@example.com")
+        monkeypatch.setattr(observability, "SENTRY_DSN", "")
+        return
+
+    monkeypatch.setattr(config, "ZAI_API_KEY", DUMMY_ZAI_KEY)
     monkeypatch.setattr(config, "RESEND_API_KEY", DUMMY_RESEND_KEY)
     monkeypatch.setattr(config, "SENTRY_DSN", "")
-    monkeypatch.setattr(rag, "ANTHROPIC_API_KEY", DUMMY_ANTHROPIC_KEY)
+    monkeypatch.setattr(llm, "ZAI_API_KEY", DUMMY_ZAI_KEY)
     monkeypatch.setattr(notify, "RESEND_API_KEY", DUMMY_RESEND_KEY)
     monkeypatch.setattr(notify, "CONTACT_NOTIFY_TO", "nobody@example.com")
     monkeypatch.setattr(observability, "SENTRY_DSN", "")
 
 
 @pytest.fixture(autouse=True)
-def no_live_anthropic_client(monkeypatch):
-    import anthropic
+def no_live_llm_call(request, monkeypatch):
+    """Stop any test from actually calling Z.AI. Except the ones marked `live`."""
+    if "live" in request.keywords:
+        llm.get_client.cache_clear()
+        yield
+        return
 
     def _refuse(*args, **kwargs):
         raise LiveApiCallAttempted(
-            "a test tried to construct a real Anthropic client; "
-            "patch rag.get_client instead"
+            "a test tried to POST to the Z.AI API; use the fake_llm fixture instead"
         )
 
-    monkeypatch.setattr(anthropic, "Anthropic", _refuse)
+    monkeypatch.setattr(llm, "_post", _refuse)
     # The client is cached for the process, so clear it before each test rather
-    # than after: by teardown, get_client itself may have been monkeypatched to
-    # a fake with no cache to clear.
-    rag.get_client.cache_clear()
+    # than after: by teardown, _post itself may have been replaced by a fake
+    # that never touches the cached client at all.
+    llm.get_client.cache_clear()
     yield
 
 
@@ -126,71 +157,66 @@ def fake_resend(monkeypatch):
     return install
 
 
-# --- Fakes standing in for the Anthropic SDK's response objects -------------
+# --- Standing in for the Z.AI API -------------------------------------------
 
 
-@dataclass
-class FakeTextBlock:
-    text: str
-    type: str = "text"
+def zai_response(content: str, *, finish_reason: str = "stop", status: int = 200):
+    """One chat-completions response, shaped the way Z.AI shapes them."""
+    return httpx.Response(
+        status,
+        json={
+            "choices": [
+                {
+                    "finish_reason": finish_reason,
+                    "message": {"role": "assistant", "content": content},
+                }
+            ]
+        },
+        request=httpx.Request("POST", "https://api.z.ai/api/paas/v4/chat/completions"),
+    )
 
 
-@dataclass
-class FakeMessage:
-    content: list = field(default_factory=list)
-    stop_reason: str = "end_turn"
+def zai_error(status: int):
+    """An error status with a body that echoes the request back.
 
-
-@dataclass
-class FakeParsedMessage:
-    """What `messages.parse` returns: a validated object, or None if it failed."""
-
-    parsed_output: object = None
-    stop_reason: str = "end_turn"
-
-
-class FakeMessages:
-    """Records the calls it receives so tests can assert on the prompt.
-
-    `create` and `parse` share one response and one call log — no test uses both
-    in a single call, and keeping them together means a fake cannot silently
-    answer the wrong one.
+    The echoed text is the point: several tests assert it does not survive into
+    anything a visitor or a log reader can see.
     """
-
-    def __init__(self, response):
-        self._response = response
-        self.calls: list[dict] = []
-
-    def _record(self, kwargs):
-        self.calls.append(kwargs)
-        if isinstance(self._response, Exception):
-            raise self._response
-        return self._response
-
-    def create(self, **kwargs):
-        return self._record(kwargs)
-
-    def parse(self, **kwargs):
-        return self._record(kwargs)
-
-
-class FakeClient:
-    def __init__(self, response):
-        self.messages = FakeMessages(response)
+    return httpx.Response(
+        status,
+        json={"error": {"message": "invalid request: Northwind senior Flutter engineer"}},
+        request=httpx.Request("POST", "https://api.z.ai/api/paas/v4/chat/completions"),
+    )
 
 
 @pytest.fixture
-def fake_claude(monkeypatch):
-    """Install a fake Claude client and hand the test its call log.
+def fake_llm(monkeypatch):
+    """Install a fake Z.AI transport and hand the test its call log.
 
-    Usage:  client = fake_claude(FakeMessage(content=[FakeTextBlock("hi")]))
+    Pass one or more responses. Each call consumes the next; the last one
+    repeats, so a single argument answers every call. An `Exception` is raised
+    rather than returned, which is how transport failures are simulated.
+
+    Usage:  calls = fake_llm(zai_response("An answer."))
             ...
-            assert client.messages.calls[0]["model"] == ...
+            assert calls[0]["model"] == "glm-4.7-flash"
     """
 
-    def install(response) -> FakeClient:
-        client = FakeClient(response)
-        monkeypatch.setattr(rag, "get_client", lambda: client)
-        return client
+    def install(*responses) -> list[dict]:
+        calls: list[dict] = []
+        queue = list(responses)
+
+        def _capture(payload: dict, read_timeout: float = 0.0):
+            calls.append(payload)
+            item = queue.pop(0) if len(queue) > 1 else queue[0]
+            if isinstance(item, Exception):
+                raise item
+            return item
+
+        monkeypatch.setattr(llm, "_post", _capture)
+        # Retry backoff is real seconds otherwise, and the retry path is
+        # exercised by several tests.
+        monkeypatch.setattr(llm, "_wait", lambda _seconds: None)
+        return calls
 
     return install

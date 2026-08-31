@@ -1,7 +1,7 @@
 """Tests for POST /contact — storage, notification, and what survives failure.
 
 The theme running through most of these: a visitor's message must not be lost.
-Claude can be down, Resend can be down, triage can refuse — the submission is
+The model can be down, Resend can be down, triage can refuse — the submission is
 still on disk and the sender still gets a 200. The only fatal failure is being
 unable to store it at all.
 """
@@ -15,7 +15,7 @@ from app import main, notify, submissions, triage
 from app.config import MAX_MESSAGE_CHARS, MAX_NAME_CHARS
 from app.ratelimit import DailyRateLimiter
 from app.schemas import ContactRequest, TriageResult
-from tests.conftest import FakeParsedMessage
+from tests.conftest import zai_response
 
 client = TestClient(main.app)
 
@@ -45,7 +45,7 @@ def store(tmp_path, monkeypatch):
 
 @pytest.fixture(autouse=True)
 def fresh_limiter(monkeypatch):
-    monkeypatch.setattr(main, "contact_limiter", DailyRateLimiter(5, 50))
+    monkeypatch.setattr(main, "contact_limiter", DailyRateLimiter(50))
 
 
 @pytest.fixture
@@ -163,7 +163,7 @@ def test_reply_to_is_the_sender(triaged, fake_resend):
 
 
 def test_a_triage_failure_still_stores_and_still_notifies(store, triaged, fake_resend):
-    triaged(triage.TriageUnavailable("the Claude API returned 529"))
+    triaged(triage.TriageUnavailable("the Z.AI API returned 529"))
     sent = fake_resend()
 
     response = client.post("/contact", json=PAYLOAD)
@@ -268,14 +268,14 @@ def test_an_oversized_name_is_rejected():
     assert client.post("/contact", json=payload).status_code == 422
 
 
-def test_a_rejected_submission_costs_nothing(fake_claude, fake_resend):
+def test_a_rejected_submission_costs_nothing(fake_llm, fake_resend):
     """No model call, no email, no row."""
-    fake = fake_claude(FakeParsedMessage(parsed_output=RESULT))
+    calls = fake_llm(zai_response(RESULT.model_dump_json()))
     sent = fake_resend()
 
     client.post("/contact", json={})
 
-    assert fake.messages.calls == []
+    assert calls == []
     assert sent == []
 
 
@@ -286,24 +286,25 @@ def test_contact_rejects_get():
 # --- Rate limiting ----------------------------------------------------------
 
 
-def test_contact_is_rate_limited_per_ip(monkeypatch, triaged, fake_resend):
-    monkeypatch.setattr(main, "contact_limiter", DailyRateLimiter(per_ip_limit=2, total_limit=50))
+def test_contact_is_rate_limited_by_daily_total(monkeypatch, triaged, fake_resend):
+    """Not per-IP any more. This ceiling exists to stay inside Resend's own
+    free-tier limit, not to identify a caller."""
+    monkeypatch.setattr(main, "contact_limiter", DailyRateLimiter(total_limit=2))
     triaged()
     fake_resend()
 
-    headers = {"X-Real-IP": "203.0.113.7"}
-    assert client.post("/contact", json=PAYLOAD, headers=headers).status_code == 200
-    assert client.post("/contact", json=PAYLOAD, headers=headers).status_code == 200
+    assert client.post("/contact", json=PAYLOAD).status_code == 200
+    assert client.post("/contact", json=PAYLOAD).status_code == 200
 
-    response = client.post("/contact", json=PAYLOAD, headers=headers)
+    response = client.post("/contact", json=PAYLOAD)
     assert response.status_code == 429
     assert int(response.headers["retry-after"]) > 0
 
 
 def test_contact_and_chat_have_separate_budgets(monkeypatch, triaged, fake_resend):
     """Chat traffic must not be able to exhaust LJ's ability to receive mail."""
-    monkeypatch.setattr(main, "limiter", DailyRateLimiter(per_ip_limit=0, total_limit=0))
-    monkeypatch.setattr(main, "contact_limiter", DailyRateLimiter(per_ip_limit=5, total_limit=50))
+    monkeypatch.setattr(main, "limiter", DailyRateLimiter(total_limit=0))
+    monkeypatch.setattr(main, "contact_limiter", DailyRateLimiter(total_limit=50))
     triaged()
     fake_resend()
 
@@ -312,7 +313,7 @@ def test_contact_and_chat_have_separate_budgets(monkeypatch, triaged, fake_resen
 
 
 def test_a_rate_limited_submission_is_not_stored(store, monkeypatch, triaged, fake_resend):
-    monkeypatch.setattr(main, "contact_limiter", DailyRateLimiter(per_ip_limit=0, total_limit=50))
+    monkeypatch.setattr(main, "contact_limiter", DailyRateLimiter(total_limit=0))
     triaged()
     sent = fake_resend()
 

@@ -15,7 +15,7 @@ from fastapi.testclient import TestClient
 
 from app import main, rag
 from app.config import ALLOWED_ORIGINS
-from tests.conftest import FakeMessage, FakeTextBlock
+from tests.conftest import zai_response
 
 client = TestClient(main.app)
 
@@ -47,25 +47,11 @@ def test_disallowed_origin_gets_no_preflight_approval():
     assert "access-control-allow-origin" not in response.headers
 
 
-def test_the_real_response_carries_the_header_too(monkeypatch):
+def test_the_real_response_carries_the_header_too(monkeypatch, fake_llm):
     """A preflight passing is not enough — the browser also checks the actual
     response, and this is exactly the gap that shipped without a test."""
     monkeypatch.setattr(rag, "retrieve", lambda question, k=6: [])
-    monkeypatch.setattr(
-        rag,
-        "get_client",
-        lambda: type(
-            "_Client",
-            (),
-            {
-                "messages": type(
-                    "_Messages",
-                    (),
-                    {"create": staticmethod(lambda **kw: FakeMessage(content=[FakeTextBlock("An answer.")]))},
-                )()
-            },
-        )(),
-    )
+    fake_llm(zai_response("An answer."))
 
     response = client.post(
         "/chat",

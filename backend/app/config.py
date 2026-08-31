@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 
 BACKEND_ROOT = Path(__file__).resolve().parent.parent
 
-# Local development only. `.env` is gitignored and holds the Anthropic key; on
+# Local development only. `.env` is gitignored and holds the Z.AI key; on
 # the VM the same variables arrive from the systemd unit and in CI from GitHub
 # Actions secrets, where no .env file exists and this is a no-op. Real
 # environment variables win over the file, so the VM cannot be shadowed by a
@@ -52,24 +52,45 @@ CORPUS_SUBJECT = os.environ.get("AI_PORTFOLIO_CORPUS_SUBJECT", "Ljuben Vassilev"
 # rank 5, losing to FAQ entries by margins as small as 0.0075 — the FAQ is
 # written as questions, so it competes strongly with anything question-shaped.
 # At a median 112 tokens per chunk this is roughly 670 tokens of context, which
-# is cheap next to the answer Claude generates from it.
+# is cheap next to the answer the model generates from it.
 TOP_K = int(os.environ.get("AI_PORTFOLIO_TOP_K", "6"))
 
 # ---------------------------------------------------------------------------
-# Claude API
+# Z.AI GLM API
 # ---------------------------------------------------------------------------
 
 # Never has a default. An unset key must fail loudly at first use rather than
 # silently fall back to something.
-ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
+ZAI_API_KEY = os.environ.get("ZAI_API_KEY", "")
 
-# Haiku 4.5 — LJ's call, and the right shape for this job. The answer is
-# generated from context that has already been retrieved and ranked; the model
-# is summarising supplied text, not reasoning from scratch. Haiku is a fifth the
-# price of Opus per token and noticeably faster, which matters for a chat widget
-# a visitor is waiting on. Switch to claude-sonnet-5 here if answer quality
-# disappoints — this is the only line that needs to change.
-ANTHROPIC_MODEL = os.environ.get("AI_PORTFOLIO_ANTHROPIC_MODEL", "claude-haiku-4-5")
+# Plain REST — a bearer token and JSON, no vendor SDK. The chat-completions
+# path is appended by app/llm.py.
+ZAI_BASE_URL = os.environ.get("AI_PORTFOLIO_ZAI_BASE_URL", "https://api.z.ai/api/paas/v4")
+
+# GLM-4.7-Flash, for both /chat and contact triage.
+#
+# Z.AI prices exactly two text models at zero. Measured against the live API,
+# eight sequential calls each:
+#
+#   glm-4.7-flash   2/8 succeeded   ~1-2s on success, ~0.4s to fail (429/1305)
+#   glm-4.5-flash   8/8 succeeded   36-65s per call
+#
+# 4.5-Flash is reliable and unusably slow — a minute per call, against nginx's
+# 60s proxy timeout. So both endpoints use 4.7-Flash and treat its failures as
+# the thing to engineer around rather than a reason to pick the other one.
+#
+# Free on Z.AI means shared best-effort capacity: roughly three calls in four
+# return "service temporarily overloaded". That is survivable only because the
+# failure is *cheap* — a 429 comes back in ~0.4s where an answer takes 1-2s —
+# so retrying costs almost nothing. app/llm.py spends those failures on retries,
+# with two budgets: a short one for /chat, where a visitor is watching, and a
+# much longer one for triage, which runs in a background task where nobody is.
+#
+# The escape hatch, if this ever stops holding: GLM-5.3-Flash, 50 concurrent,
+# fast and reliable, at $0.15/$0.50 per million tokens — cents a month at this
+# traffic. It needs a positive account balance; without one it returns
+# "1113 Insufficient balance" rather than an answer.
+ZAI_MODEL = os.environ.get("AI_PORTFOLIO_ZAI_MODEL", "glm-4.7-flash")
 
 # Deliberately small. Portfolio answers should be a few short paragraphs, the
 # system prompt asks for exactly that, and a low ceiling caps the cost of a
@@ -84,23 +105,31 @@ MAX_QUESTION_CHARS = int(os.environ.get("AI_PORTFOLIO_MAX_QUESTION_CHARS", "1000
 # Rate limiting
 # ---------------------------------------------------------------------------
 #
-# Two ceilings, both counted per calendar day in UTC and both reset at the same
-# instant: one per client IP, and one across every caller. The per-IP limit
-# stops a single visitor draining the budget; the total is the actual spend cap,
-# and it holds even against traffic spread across many addresses.
+# One ceiling per endpoint, counted per calendar day in UTC.
+#
+# There used to be a second, per-client-IP ceiling. It existed because every
+# request spent money at the Claude API, so the total was a spend cap and the
+# per-IP limit was what stopped one visitor draining it. Z.AI's free models are
+# not metered by token or request at all — only by concurrency — so there is no
+# budget left to drain and the per-IP counter was protecting nothing.
+#
+# Known consequence, accepted deliberately: without it, one caller can spend the
+# whole daily total on its own. For /chat that is a self-limiting nuisance. For
+# /contact it is real — the total below is what keeps submissions inside
+# Resend's own free-tier ceiling, and a script can now exhaust it in a minute
+# and lock out every genuine enquiry until the next UTC midnight. Restore a
+# per-IP counter here if that ever actually happens.
 #
 # UTC rather than Brisbane time so the reset is deterministic and does not move
 # with daylight saving anywhere. The consequence is that the window rolls over
-# at 10am local, not midnight — fine for a spend cap, worth knowing when reading
-# the numbers.
-CHAT_DAILY_LIMIT_PER_IP = int(os.environ.get("AI_PORTFOLIO_CHAT_LIMIT_PER_IP", "20"))
+# at 10am local, not midnight — worth knowing when reading the numbers.
 CHAT_DAILY_LIMIT_TOTAL = int(os.environ.get("AI_PORTFOLIO_CHAT_LIMIT_TOTAL", "500"))
 
-# /contact gets its own counters, much tighter. A person submits a contact form
-# roughly once; twenty attempts from one address is not a person. Sharing
-# /chat's counters would let chatbot traffic exhaust LJ's ability to receive
-# mail, which is the more valuable of the two endpoints.
-CONTACT_DAILY_LIMIT_PER_IP = int(os.environ.get("AI_PORTFOLIO_CONTACT_LIMIT_PER_IP", "5"))
+# /contact gets its own counter, much tighter, and keeps it for a reason that
+# survived the change above: this one is not about inference cost. Every
+# submission sends mail through Resend, whose free tier has a hard daily
+# ceiling, and sharing /chat's counter would let chatbot traffic exhaust LJ's
+# ability to receive mail — the more valuable of the two endpoints.
 CONTACT_DAILY_LIMIT_TOTAL = int(os.environ.get("AI_PORTFOLIO_CONTACT_LIMIT_TOTAL", "50"))
 
 # ---------------------------------------------------------------------------
@@ -115,10 +144,11 @@ SUBMISSIONS_DB_PATH = Path(
     os.environ.get("AI_PORTFOLIO_SUBMISSIONS_DB_PATH", BACKEND_ROOT / "data" / "submissions.db")
 )
 
-# Same model as /chat. Classifying a short message and drafting a two-line reply
-# is comfortably within Haiku, and the draft is a starting point for LJ to edit
-# rather than anything sent automatically.
-TRIAGE_MODEL = os.environ.get("AI_PORTFOLIO_TRIAGE_MODEL", "claude-haiku-4-5")
+# Triage runs on ZAI_MODEL, the same model as /chat — classifying a short
+# message and drafting a two-line reply is comfortably within a Flash-tier
+# model, and the draft is a starting point for LJ to edit rather than anything
+# sent automatically. Only the token ceiling differs, and only so the two can be
+# tuned apart.
 TRIAGE_MAX_TOKENS = int(os.environ.get("AI_PORTFOLIO_TRIAGE_MAX_TOKENS", "1024"))
 
 # Field ceilings for the contact form. Generous enough for a real enquiry,
